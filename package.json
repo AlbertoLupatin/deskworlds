@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "license": "MIT",
   "type": "module",
-  "description": "Living worlds for your macOS desktop: Riverscape, a planted river, Reefscape, a coral reef, and Bettascape, a single betta.",
+  "description": "Living worlds for your macOS desktop: Riverbed, a planted river, Coral reef, a coral reef, and Betta, a single betta.",
   "scripts": {
     "start": "node serve.mjs",
     "wallpaper": "sh wallpaper/install.sh",

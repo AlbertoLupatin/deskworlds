@@ -81,4 +81,4 @@ for(const seed of [1,2,3,4,5,6,7,8]){
   // A click far outside the tank still lands on the water inside it.
   betta.feed(99,-.3,1);assert.ok(betta.food.pellets[0].x<=betta.bounds.max.x+PELLET.spread);
 }
-console.log('bettascape food ok');
+console.log('betta food ok');

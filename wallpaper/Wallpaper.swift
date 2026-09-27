@@ -21,7 +21,13 @@ let sceneHost = "local"
 enum World: String, CaseIterable {
   case riverscape, reefscape, bettascape
 
-  var title: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
+  var title: String {
+    switch self {
+    case .riverscape: "Riverbed"
+    case .reefscape: "Coral reef"
+    case .bettascape: "Betta"
+    }
+  }
   var page: String { "/scenes/\(rawValue)/wallpaper.html" }
   /// What shows before the page has drawn anything, matched to each scene's own dark.
   var background: NSColor {
@@ -32,7 +38,7 @@ enum World: String, CaseIterable {
     }
   }
 
-  /// Riverscape until somebody picks otherwise. The choice outlives a restart.
+  /// Riverbed until somebody picks otherwise. The choice outlives a restart.
   static var selected: World {
     get { UserDefaults.standard.string(forKey: "world").flatMap(World.init) ?? .riverscape }
     set { UserDefaults.standard.set(newValue.rawValue, forKey: "world") }

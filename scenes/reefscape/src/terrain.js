@@ -46,7 +46,7 @@ export async function createTerrain(scene){
     color:`diffuseColor.rgb=mix(vec3(.42,.33,.23),vec3(.92,.875,.78),smoothstep(.42,.92,reefGrain.r))*(.90+.08*drift)*(.90+.055*ripple)*vShade;`,
     surfaceNormal:`vec2 grainSlope=reefGrain.gb*2.-1.;
       normal=normalize(mat3(viewMatrix)*normalize(normalize(vBedNormal)+vec3(grainSlope.x*.7-rippleSlope.x,0.,grainSlope.y*.7-rippleSlope.y)));`});
-  // The bed runs past every frame edge, like the riverscape's, so no rim or wall is ever seen.
+  // The bed runs past every frame edge, like Riverbed's, so no rim or wall is ever seen.
   const ground=new THREE.PlaneGeometry(30,14,180,84);ground.rotateX(-Math.PI/2);ground.translate(0,0,1.0);const p=ground.attributes.position,shade=new Float32Array(p.count);
   // Sand darkens where it meets the rock: a baked contact shadow from each rock footprint,
   // so the hardscape sits in the bed instead of floating on a lit sheet.

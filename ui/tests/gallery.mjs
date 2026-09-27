@@ -10,7 +10,7 @@ function setup(reduceMotion = false) {
   let now = 0;
   const handlers = {};
   const classes = new Set();
-  const portals = ['River', 'Reef', 'Betta'].map(name => ({
+  const portals = ['Riverbed', 'Coral reef', 'Betta'].map(name => ({
     offsetWidth: 1000,
     style: { setProperty() {} },
     classList: { toggle(name, on) { this.active = on; } },
@@ -229,7 +229,7 @@ const wheelEvent = (deltaX, deltaY) => ({ deltaX, deltaY, deltaMode: 0, preventD
     app.handlers.keydown({ key: 'ArrowRight', preventDefault() {} });
     assert.equal(selected(), expected, 'going right visits every portal in order and wraps');
   }
-  assert.equal(app.portals[0]['aria-label'], 'Open River');
+  assert.equal(app.portals[0]['aria-label'], 'Open Riverbed');
 }
 {
   const app = setup(true);

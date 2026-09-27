@@ -1,4 +1,4 @@
-# Reefscape assets
+# Coral reef assets
 
 `live-rock.bin` is the deterministic signed-density limestone surface, with indexed geometry, normals, and a per-vertex stream of baked sky visibility, coralline thickness and coralline hue. `rock-support.bin` contains the top-surface field rasterized from that mesh. Rebuild both with `tools/bake-live-rock.py`.
 
