@@ -8,7 +8,7 @@ import { PELLET } from './food.js';
 import { createRenderer } from './render.js';
 import { createView, homeBounds } from './view.js';
 
-const canvas=document.querySelector('#scene'),habitat=document.querySelector('#habitat'),loading=document.querySelector('#loading');
+const canvas=document.querySelector('#scene'),stage=document.querySelector('#stage'),loading=document.querySelector('#loading');
 const params=new URLSearchParams(location.search),isHost=document.documentElement.dataset.motion==='host';
 const capture=params.has('capture');
 if(capture)document.body.classList.add('clean','capture');
@@ -17,11 +17,11 @@ let hostRate=isHost?0:60,onBattery=false,contextLost=false,disposed=false;
 let paused=capture||(!isHost&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 let changeRate=()=>{},changePower=()=>{},feed=()=>{};
 // Installed before WebGL startup so host rate 0 cannot be lost during initialization.
-window.habitatRate=fps=>{if(!Number.isFinite(fps))return;const next=Math.max(0,Math.min(60,fps));if(next===hostRate)return;hostRate=next;changeRate();};
-window.habitatFeed=()=>feed();
-window.habitatPause=value=>{paused=Boolean(value);changeRate();};
+window.sceneRate=fps=>{if(!Number.isFinite(fps))return;const next=Math.max(0,Math.min(60,fps));if(next===hostRate)return;hostRate=next;changeRate();};
+window.sceneFeed=()=>feed();
+window.scenePause=value=>{paused=Boolean(value);changeRate();};
 // The Mac host knows the power source; a browser only sometimes does (see getBattery below).
-window.habitatPower=battery=>{const next=Boolean(battery);if(next===onBattery)return;onBattery=next;changePower();};
+window.scenePower=battery=>{const next=Boolean(battery);if(next===onBattery)return;onBattery=next;changePower();};
 
 // Capture framing, both optional: ?camera=yaw,pitch,distance[,x,y,z] orbits the camera about a
 // target; ?pose=x,y,z,yaw[,pitch,roll] holds the fish still in a pose.
@@ -85,7 +85,7 @@ async function start(){
   changeRate=restart;
   changePower=()=>{resize();restart();};
   function resize(redrawNow=true){
-    const width=habitat.clientWidth,height=habitat.clientHeight,preset=presets[quality];
+    const width=stage.clientWidth,height=stage.clientHeight,preset=presets[quality];
     const wasZeroSize=zeroSize;
     zeroSize=!(width>0&&height>0);
     if(zeroSize){restart();return;}
@@ -96,7 +96,7 @@ async function start(){
     if(wasZeroSize)restart();
     if(redrawNow&&!document.hidden)render(0,false);
   }
-  const observer=new ResizeObserver(()=>resize());observer.observe(habitat);
+  const observer=new ResizeObserver(()=>resize());observer.observe(stage);
   resize(false);
 
   canvas.addEventListener('pointermove',event=>{
@@ -107,8 +107,8 @@ async function start(){
   // A pinch on the water somewhere along the tank, as a keeper would feed.
   const pinch=()=>betta.feed(Math.sin(betta.time*.73)*betta.bounds.max.x*.7,-.3+.25*Math.sin(betta.time*.41),between(PELLET.pinch));
   feed=()=>{if(running())pinch();};
-  updateControls=installControls({habitat,isPaused:()=>paused,isRunning:running,
-    pause:window.habitatPause,feed,quality:()=>quality,
+  updateControls=installControls({stage,isPaused:()=>paused,isRunning:running,
+    pause:window.scenePause,feed,quality:()=>quality,
     setQuality(value){quality=qualityName(value);autoScale=1;resize();restart();},
   });
   document.addEventListener('visibilitychange',()=>{pointer=null;betta.point(null);if(!document.hidden){resize(false);if(paused)render(0,false);}restart();});
@@ -133,10 +133,10 @@ async function start(){
     advance(seconds){if(!paused)throw new Error('Pause before advancing deterministic capture time.');if(!Number.isFinite(seconds)||seconds<0||seconds>120)throw new RangeError('Advance must be 0–120 seconds.');advance(seconds);render(0,true);},
     feed:pinch,
   };
-  window.habitatStats=window.betta.diagnostics;
+  window.sceneStats=window.betta.diagnostics;
   if(params.get('diagnostics')==='1'){
     const {installDiagnostics}=await import('../../shared/diagnostics.js');
-    installDiagnostics({renderer,loop,renderFrame,stats:window.habitatStats});
+    installDiagnostics({renderer,loop,renderFrame,stats:window.sceneStats});
   }
   // Release owned GPU objects and stop callbacks when a page is really discarded.
   // BFCache pages retain resources and restart from their old simulation time.

@@ -1,9 +1,9 @@
 {
-  "name": "desktop-habitats",
+  "name": "deskworlds",
   "version": "1.1.0",
   "license": "MIT",
   "type": "module",
-  "description": "Living desktop scenes for macOS: Riverscape, a freshwater aquarium, Reefscape, a saltwater tank, and Bettascape, a single betta.",
+  "description": "Living worlds for your macOS desktop: Riverscape, a planted river, Reefscape, a coral reef, and Bettascape, a single betta.",
   "scripts": {
     "start": "node serve.mjs",
     "wallpaper": "sh wallpaper/install.sh",

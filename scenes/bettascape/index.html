@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
-      content="A red and blue halfmoon betta in a black tank, lit like a studio portrait. A local, interactive 3D aquarium preview."
+      content="A red and blue halfmoon betta against black, lit like a studio portrait. A local, interactive 3D preview."
     />
-    <title>Bettascape • Desktop Habitats</title>
-    <link rel="icon" href="data:," />
+    <title>Bettascape • Deskworlds</title>
+    <link rel="icon" href="../../ui/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="style.css" />
     <script type="importmap">
       {
@@ -20,21 +20,21 @@
     </script>
   </head>
   <body>
-    <main id="habitat" aria-label="Interactive betta aquarium">
+    <main id="stage" aria-label="Interactive betta portrait">
       <canvas
         id="scene"
         tabindex="0"
-        aria-label="A halfmoon betta hovering in a dark tank. Click to feed. Drag to look around. Scroll to zoom. Space pauses. F enters fullscreen. H hides controls."
+        aria-label="A halfmoon betta hovering in the dark. Click to feed. Drag to look around. Scroll to zoom. Space pauses. F enters fullscreen. H hides controls."
       ></canvas>
-      <nav class="chrome" aria-label="Aquariums">
-        <a class="home-link" href="../../" aria-label="Habitats home">Habitats</a>
+      <nav class="chrome" aria-label="Worlds">
+        <a class="home-link" href="../../" aria-label="Deskworlds home">Deskworlds</a>
         <div class="scene-nav">
           <a href="../riverscape/">Riverscape</a>
           <a href="../reefscape/">Reefscape</a>
           <span aria-current="page">Bettascape</span>
         </div>
       </nav>
-      <footer class="chrome" aria-label="Aquarium controls">
+      <footer class="chrome" aria-label="World controls">
         <div class="buttons">
           <button disabled id="pause" aria-pressed="false" title="Space">Pause</button>
           <button disabled id="feed">Feed</button>
@@ -50,7 +50,7 @@
         </div>
       </footer>
       <button disabled id="show-controls" title="H">Show controls</button>
-      <div id="loading" role="status"><p>Loading aquarium…</p></div>
+      <div id="loading" role="status"><p>Loading world…</p></div>
       <div id="error" role="alert" hidden></div>
     </main>
     <script type="module" src="../shared/start.js" data-entry="./src/main.js"></script>

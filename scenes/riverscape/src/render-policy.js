@@ -1,5 +1,5 @@
 import { QUALITY_PRESETS, qualityName, renderScale } from '../../shared/render-policy.js';
-// Rendering budgets, kept separate from animation and habitat behaviour. The reference
+// Rendering budgets, kept separate from animation and scene behaviour. The reference
 // profile reproduces the uploaded rendering/density settings for local A/B checks.
 export const PROFILES = Object.freeze({
   balanced: Object.freeze({
