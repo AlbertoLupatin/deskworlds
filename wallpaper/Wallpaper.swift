@@ -45,6 +45,27 @@ enum World: String, CaseIterable {
   }
 }
 
+/// The rendering profile passed to every scene; matches QUALITY_PRESETS in render-policy.js.
+enum Quality: String, CaseIterable {
+  case eco, balanced, detail, native
+
+  var title: String {
+    switch self {
+    case .eco: "Eco (20 fps)"
+    case .balanced: "Balanced (30 fps)"
+    case .detail: "Detail (60 fps)"
+    case .native: "Native (full resolution, 60 fps)"
+    }
+  }
+  /// Native keeps full speed and resolution on battery; the others slow down.
+  var batterySaver: Bool { self != .native }
+
+  static var selected: Quality {
+    get { UserDefaults.standard.string(forKey: "quality").flatMap(Quality.init) ?? .native }
+    set { UserDefaults.standard.set(newValue.rawValue, forKey: "quality") }
+  }
+}
+
 /// Serves the bundled copy of the scenes to the web view.
 final class SceneHandler: NSObject, WKURLSchemeHandler {
   private let root: URL
@@ -110,7 +131,7 @@ final class Wallpaper: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   private var rate = 0
   private var battery = false
 
-  init(screen: NSScreen, root: URL, world: World) {
+  init(screen: NSScreen, root: URL, world: World, quality: Quality) {
     let settings = WKWebViewConfiguration()
     settings.setURLSchemeHandler(
       SceneHandler(root: root, page: world.page), forURLScheme: sceneScheme)
@@ -186,7 +207,8 @@ final class Wallpaper: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     window.setFrame(screen.frame, display: true)
     window.orderFrontRegardless()
 
-    view.load(URLRequest(url: URL(string: "\(sceneScheme)://\(sceneHost)\(world.page)")!))
+    let page = "\(sceneScheme)://\(sceneHost)\(world.page)?quality=\(quality.rawValue)"
+    view.load(URLRequest(url: URL(string: page)!))
   }
 
   func close() {
@@ -319,6 +341,8 @@ final class Controller: NSObject, NSApplicationDelegate, NSMenuDelegate {
   private let feed = NSMenuItem()
   private var worldItems: [NSMenuItem] = []
   private var world = World.selected
+  private var qualityItems: [NSMenuItem] = []
+  private var quality = Quality.selected
   private var applied = 0
   private var pointerTimer: Timer?
   private var pointerRate = 0
@@ -422,7 +446,9 @@ final class Controller: NSObject, NSApplicationDelegate, NSMenuDelegate {
   private func build() {
     layout = NSScreen.screens.map(\.frame)
     for screen in screens { screen.close() }
-    screens = NSScreen.screens.map { Wallpaper(screen: $0, root: root, world: world) }
+    screens = NSScreen.screens.map {
+      Wallpaper(screen: $0, root: root, world: world, quality: quality)
+    }
     applyRate()
   }
 
@@ -438,7 +464,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSMenuDelegate {
   /// Power depends on the machine and display; it must be measured on the target Mac.
   func applyRate() {
     let battery = onBattery
-    let full = battery ? 30 : 60
+    let full = battery && quality.batterySaver ? 30 : 60
     let still = stopped || lowPower || !awake
     // Read the window list once for all displays, and never while deliberately still.
     let blockers = still ? [] : windowBlockers()
@@ -556,6 +582,19 @@ final class Controller: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let worldMenu = NSMenuItem(title: "World", action: nil, keyEquivalent: "")
     worldMenu.submenu = worlds
     menu.addItem(worldMenu)
+    let qualities = NSMenu(title: "Quality")
+    qualities.autoenablesItems = false
+    for choice in Quality.allCases {
+      let item = NSMenuItem(
+        title: choice.title, action: #selector(selectQuality), keyEquivalent: "")
+      item.target = self
+      item.representedObject = choice.rawValue
+      qualities.addItem(item)
+      qualityItems.append(item)
+    }
+    let qualityMenu = NSMenuItem(title: "Quality", action: nil, keyEquivalent: "")
+    qualityMenu.submenu = qualities
+    menu.addItem(qualityMenu)
     menu.addItem(.separator())
     feed.title = "Feed"
     feed.target = self
@@ -580,6 +619,9 @@ final class Controller: NSObject, NSApplicationDelegate, NSMenuDelegate {
   func menuNeedsUpdate(_ menu: NSMenu) {
     for item in worldItems {
       item.state = item.representedObject as? String == world.rawValue ? .on : .off
+    }
+    for item in qualityItems {
+      item.state = item.representedObject as? String == quality.rawValue ? .on : .off
     }
     state.title =
       lowPower
@@ -617,6 +659,15 @@ final class Controller: NSObject, NSApplicationDelegate, NSMenuDelegate {
     world = chosen
     World.selected = chosen
     status?.button?.toolTip = "Deskworlds · \(chosen.title)"
+    build()
+  }
+
+  @objc private func selectQuality(_ sender: NSMenuItem) {
+    guard let name = sender.representedObject as? String,
+      let chosen = Quality(rawValue: name), chosen != quality
+    else { return }
+    quality = chosen
+    Quality.selected = chosen
     build()
   }
 
