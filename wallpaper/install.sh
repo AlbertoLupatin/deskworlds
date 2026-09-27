@@ -74,6 +74,18 @@ launchctl kickstart -k "$domain/$label"
 # show before the scene is drawing. It is a frame of the scene itself.
 still="$HOME/Pictures/Desktop Habitats.png"
 mkdir -p "$HOME/Pictures"
+# Remember each desktop's picture, one per line, so uninstalling can put it back. Only
+# the first install records: a reinstall would otherwise save the scene's own still.
+original="$HOME/Library/Application Support/Desktop Habitats/wallpaper.txt"
+if [ ! -s "$original" ]; then
+	pictures=$(osascript -e 'set text item delimiters to linefeed' \
+		-e 'tell application "System Events" to set found to picture of every desktop' \
+		-e 'found as text' 2>/dev/null || true)
+	if [ -n "$pictures" ] && ! printf '%s\n' "$pictures" | grep -qxF "$still"; then
+		mkdir -p "$(dirname "$original")"
+		printf '%s\n' "$pictures" >"$original"
+	fi
+fi
 echo "Waiting for the first frame, then setting the still picture."
 sleep 8
 if pid=$(pgrep -n -f "Desktop Habitats.app/Contents/MacOS/Desktop Habitats"); then

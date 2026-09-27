@@ -104,7 +104,7 @@ From the project folder, run:
 sh wallpaper/uninstall.sh
 ```
 
-Or use `npm run unwallpaper`. This stops the app, removes its login item and deletes the installed app.
+Or use `npm run unwallpaper`. This stops the app, removes its login item, deletes the installed app and puts back the wallpaper you had before installing.
 
 The still image at `~/Pictures/Desktop Habitats.png` stays behind, along with the desktop picture setting. Choose your previous wallpaper in System Settings, then delete the image if you no longer want it. The saved pause and environment preferences are also retained.
 
