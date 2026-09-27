@@ -28,7 +28,7 @@ sh wallpaper/install.sh
 
 The script builds the app for your Mac, installs it at `~/Applications/Desktop Habitats.app`, and starts it. It also adds a login item so the aquarium starts when you sign in. Allow about 20 seconds for the first frame to appear.
 
-During installation, macOS may ask whether Terminal can control System Events. This lets the installer set a still image of the aquarium as your desktop picture, underneath the animation. You can decline; the live wallpaper will still work.
+The installer doesn't change your desktop picture. The aquarium draws on top of it, and your own wallpaper still shows at login and in Mission Control.
 
 You don't need Node.js for the wallpaper. If you already have it, `npm run wallpaper` runs the same installer.
 
@@ -76,7 +76,7 @@ The wallpaper reads your cursor position so the fish can react. It also checks w
 
 Once installed, the aquarium works offline. Its code, textures and Three.js library are bundled with the app. There are no analytics or external services.
 
-The app does not request Accessibility, Input Monitoring or Screen Recording access. The optional System Events prompt during installation is for changing the still desktop picture.
+The app does not request Accessibility, Input Monitoring or Screen Recording access.
 
 ### Why have the fish stopped moving?
 
@@ -104,9 +104,9 @@ From the project folder, run:
 sh wallpaper/uninstall.sh
 ```
 
-Or use `npm run unwallpaper`. This stops the app, removes its login item, deletes the installed app and puts back the wallpaper you had before installing.
+Or use `npm run unwallpaper`. This stops the app, removes its login item and deletes the installed app. Your wallpaper was never changed, so it is already there underneath. The saved pause and environment preferences are retained.
 
-The still image at `~/Pictures/Desktop Habitats.png` stays behind, along with the desktop picture setting. Choose your previous wallpaper in System Settings, then delete the image if you no longer want it. The saved pause and environment preferences are also retained.
+Versions before this one set a still image of the aquarium as the desktop picture. If you installed one of those, choose your wallpaper in System Settings, then delete `~/Pictures/Desktop Habitats.png`.
 
 ## Try it in a browser
 
