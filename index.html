@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#09110f" />
-    <meta name="description" content="Two living aquariums. Explore a planted river or a coral reef, in your browser or on your desktop." />
+    <meta name="description" content="Three living aquariums. Explore a planted river, a coral reef or a single betta, in your browser or on your desktop." />
     <title>Habitats — living aquariums</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="ui/gallery.css" />
@@ -14,7 +14,7 @@
       <h1><span class="logo-placeholder" aria-hidden="true"></span>Desktop Habitats</h1>
     </header>
     <main class="gallery" aria-label="Aquariums" aria-roledescription="carousel" aria-describedby="gallery-help" aria-keyshortcuts="ArrowLeft ArrowRight">
-      <p class="sr-only" id="gallery-help">Swipe, select the next preview, or use the left and right arrow keys to choose an aquarium. Open the selected image or name to enter.</p>
+      <p class="sr-only" id="gallery-help">Swipe, select a neighbouring preview, or use the left and right arrow keys to choose one of three aquariums; the list wraps around. Open the selected image or name to enter.</p>
       <p class="sr-only" id="gallery-status" role="status" aria-live="polite" aria-atomic="true">Riverscape</p>
       <a draggable="false" class="portal river is-active" id="river" href="scenes/riverscape/" aria-label="Open Riverscape">
         <div class="portal-image">
@@ -32,6 +32,15 @@
         </div>
         <div class="portal-caption">
           <h2>Reefscape<span class="enter" aria-hidden="true">↗</span></h2>
+        </div>
+      </a>
+      <a draggable="false" class="portal betta" id="betta" role="button" href="scenes/bettascape/" aria-label="Preview Bettascape">
+        <div class="portal-image">
+          <span class="preview-status" hidden>Preview unavailable</span>
+          <img draggable="false" src="docs/images/bettascape-wide.png" alt="A halfmoon betta with its long fins spread against a black background" width="1440" height="750" />
+        </div>
+        <div class="portal-caption">
+          <h2>Bettascape<span class="enter" aria-hidden="true">↗</span></h2>
         </div>
       </a>
     </main>

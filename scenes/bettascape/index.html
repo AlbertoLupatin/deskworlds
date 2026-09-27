@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#080e0c" />
+    <meta name="theme-color" content="#000000" />
     <meta
       name="description"
-      content="A living freshwater aquascape. A local, interactive 3D aquarium preview."
+      content="A red and blue halfmoon betta in a black tank, lit like a studio portrait. A local, interactive 3D aquarium preview."
     />
-    <title>Riverscape • Desktop Habitats</title>
+    <title>Bettascape • Desktop Habitats</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="style.css" />
     <script type="importmap">
@@ -20,18 +20,18 @@
     </script>
   </head>
   <body>
-    <main id="habitat" aria-label="Interactive freshwater aquarium">
+    <main id="habitat" aria-label="Interactive betta aquarium">
       <canvas
         id="scene"
-        aria-label="A planted freshwater aquarium. Move the pointer near fish to interact. Click to feed. Space pauses. F enters fullscreen. H hides controls."
         tabindex="0"
+        aria-label="A halfmoon betta hovering in a dark tank. Click to feed. Drag to look around. Scroll to zoom. Space pauses. F enters fullscreen. H hides controls."
       ></canvas>
       <nav class="chrome" aria-label="Aquariums">
         <a class="home-link" href="../../" aria-label="Habitats home">Habitats</a>
         <div class="scene-nav">
-          <span aria-current="page">Riverscape</span>
+          <a href="../riverscape/">Riverscape</a>
           <a href="../reefscape/">Reefscape</a>
-          <a href="../bettascape/">Bettascape</a>
+          <span aria-current="page">Bettascape</span>
         </div>
       </nav>
       <footer class="chrome" aria-label="Aquarium controls">

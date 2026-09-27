@@ -19,7 +19,7 @@ let sceneHost = "local"
 
 /// The scenes the app can show, each a directory under scenes/ with a wallpaper.html.
 enum Habitat: String, CaseIterable {
-  case riverscape, reefscape
+  case riverscape, reefscape, bettascape
 
   var title: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
   var page: String { "/scenes/\(rawValue)/wallpaper.html" }
@@ -28,6 +28,7 @@ enum Habitat: String, CaseIterable {
     switch self {
     case .riverscape: NSColor(calibratedRed: 0.031, green: 0.055, blue: 0.047, alpha: 1)
     case .reefscape: NSColor(calibratedRed: 0.043, green: 0.094, blue: 0.145, alpha: 1)
+    case .bettascape: .black
     }
   }
 

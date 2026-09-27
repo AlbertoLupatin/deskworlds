@@ -4,11 +4,13 @@
 
 Have you always wanted an aquarium? Now you can have it, right on your desktop :)
 
-The fish react to your cursor and compete for food, while the plants sway in a slow current. There are two environments: **Riverscape**, a planted freshwater aquarium, and **Reefscape**, a saltwater tank.
+The fish react to your cursor and compete for food, while the plants sway in a slow current. There are three environments: **Riverscape**, a planted freshwater aquarium, **Reefscape**, a saltwater tank, and **Bettascape**, a single halfmoon betta on a black background.
 
 ![Reefscape, a saltwater tank with clownfish around an anemone](docs/images/reefscape-wide.png)
 
-The scene is rendered live with Three.js and WebGL2. Everything runs locally, with no account or internet connection needed after setup. Desktop wallpaper support is **macOS only** for now; both environments also run in a browser. The Mac app starts with Riverscape and remembers the environment you pick from its menu.
+![Bettascape, a halfmoon betta with its long fins spread against a black background](docs/images/bettascape-wide.png)
+
+The scene is rendered live with Three.js and WebGL2. Everything runs locally, with no account or internet connection needed after setup. Desktop wallpaper support is **macOS only** for now; all three environments also run in a browser. The Mac app starts with Riverscape and remembers the environment you pick from its menu.
 
 ## Install on Mac
 
@@ -34,8 +36,8 @@ You don't need Node.js for the wallpaper. If you already have it, `npm run wallp
 
 Click the fish icon in the menu bar:
 
-- **Environment** switches every screen between Riverscape and Reefscape and remembers your choice.
-- **Feed** drops ten pellets into each screen's tank, or eight in Reefscape. Uneaten pellets dissolve after 20–40 seconds of running simulation time in Riverscape and 36 seconds in Reefscape, measured from when they touch the water.
+- **Environment** switches every screen between Riverscape, Reefscape and Bettascape and remembers your choice.
+- **Feed** drops ten pellets into each screen's tank, eight in Reefscape or six to eight in Bettascape. Uneaten pellets dissolve after 20–40 seconds of running simulation time in Riverscape, 36 seconds in Reefscape and 30 seconds in Bettascape, measured from when they touch the water.
 - **Pause / Resume** controls the animation. Your choice is remembered across restarts.
 - **Quit** closes the app until you open it again or next sign in.
 
@@ -51,9 +53,9 @@ The desktop app supports macOS only. The browser preview needs a browser with We
 
 It uses more power than a still wallpaper because it renders a 3D scene. The amount depends on your Mac, screen resolution and number of displays. There isn't a measured battery-life estimate yet.
 
-Both scenes use the same quality profiles and stop rendering when paused or hidden. The wallpaper also responds to window coverage, battery power, Low Power Mode and screen sleep.
+All three scenes use the same quality profiles and stop rendering when paused or hidden. The wallpaper also responds to window coverage, battery power, Low Power Mode and screen sleep.
 
-With the default Balanced profile, both environments use these limits:
+With the default Balanced profile, every environment uses these limits:
 
 | Desktop state | Frame rate |
 | --- | --- |
@@ -66,7 +68,7 @@ Pause it from the menu when you want a still aquarium, or quit to close the app 
 
 ### Does it monitor my keystrokes?
 
-No. The wallpaper does not listen to typing in other apps or record keystrokes. Both browser previews handle Space to pause or resume, F for fullscreen, and H to hide or show controls while the aquarium has focus.
+No. The wallpaper does not listen to typing in other apps or record keystrokes. All the browser previews handle Space to pause or resume, F for fullscreen, and H to hide or show controls while the aquarium has focus.
 
 The wallpaper reads your cursor position so the fish can react. It also checks window positions and sizes to estimate how much of the desktop is visible. It does not capture the contents of those windows, store cursor history, or send this information anywhere.
 
@@ -118,10 +120,11 @@ Open [the local preview](http://127.0.0.1:8080). There is no `npm install` step;
 
 - Click the water to drop food.
 - Move the pointer near the fish to interact.
+- In Bettascape, drag to look around the fish and scroll to zoom. Clicking still drops food.
 - Swipe or scroll through the gallery, or use the left and right arrow keys. Open the image or name to enter a scene.
-- Use **Pause / Resume**, **Feed**, **Fullscreen** and **Hide controls** in either scene. **Show controls** brings the controls back.
+- Use **Pause / Resume**, **Feed**, **Fullscreen** and **Hide controls** in every scene. **Show controls** brings the controls back.
 - Press **Space** to pause or resume, **F** for fullscreen, and **H** to hide or show controls while the aquarium has focus.
-- **Quality** offers Eco (20 fps), Balanced (30 fps, the default) and Detail (60 fps). The selection is shared between the two scenes and remembered. These are frame-rate caps; lower profiles also reduce rendering resolution.
+- **Quality** offers Eco (20 fps), Balanced (30 fps, the default) and Detail (60 fps). The selection is shared between the scenes and remembered. These are frame-rate caps; lower profiles also reduce rendering resolution.
 
 Reduce Motion starts the preview paused. Serve the page over HTTP; opening `index.html` directly will not load its JavaScript modules. Any static server also works, such as `python3 -m http.server 8080 --bind 127.0.0.1` if you have Python installed.
 
