@@ -1,14 +1,12 @@
 # Deskworlds
 
-[![Deskworlds demo](docs/images/demo.gif)](docs/videos/demo.mp4)
+[![Watch Riverscape](docs/images/riverscape.gif)](docs/videos/riverscape.mp4)
+
+[![Watch Bettascape](docs/images/bettascape.gif)](docs/videos/bettascape.mp4)
 
 Have you always wanted a little living world on your desktop? Now you can have one :)
 
 Each world is a live 3D scene that reacts to your cursor. There are three so far, all underwater: **Riverscape**, a planted river where a school of fish competes for food, **Reefscape**, a coral reef with clownfish and cleaner shrimp, and **Bettascape**, a single halfmoon betta on a black background.
-
-![Reefscape, a coral reef with clownfish around an anemone](docs/images/reefscape-wide.png)
-
-![Bettascape, a halfmoon betta with its long fins spread against a black background](docs/images/bettascape-wide.png)
 
 Every scene is rendered live with Three.js and WebGL2. Everything runs locally, with no account or internet connection needed after setup. Desktop wallpaper support is **macOS only** for now; all three worlds also run in a browser. The Mac app starts with Riverscape and remembers the world you pick from its menu.
 
