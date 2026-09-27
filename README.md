@@ -35,7 +35,6 @@ You don't need Node.js for the wallpaper. If you already have it, `npm run wallp
 Click the Deskworlds icon in the menu bar:
 
 - **World** switches every screen between Riverbed, Coral reef and Betta and remembers your choice.
-- **Quality** chooses Eco, Balanced, Detail or Native (the default) for every screen and remembers your choice.
 - **Feed** drops ten pellets into each screen's scene, eight in Coral reef or six to eight in Betta. Uneaten pellets dissolve after 20–40 seconds of running simulation time in Riverbed, 36 seconds in Coral reef and 30 seconds in Betta, measured from when they touch the water.
 - **Pause / Resume** controls the animation. Your choice is remembered across restarts.
 - **Quit** closes the app until you open it again or next sign in.
@@ -54,16 +53,17 @@ It uses more power than a still wallpaper because it renders a 3D scene. The amo
 
 All three scenes use the same quality profiles and stop rendering when paused or hidden. The wallpaper also responds to window coverage, battery power, Low Power Mode and screen sleep.
 
-With the default Native profile, every world renders at your display's full resolution and uses these limits:
+Plugged in, every world renders at your display's full resolution. On battery it drops to a lower resolution, like the browser previews' Balanced profile. Frame rates follow these limits:
 
 | Desktop state | Frame rate |
 | --- | --- |
-| Clearly visible, plugged in or on battery | Up to 60 fps |
+| Clearly visible, plugged in | Up to 60 fps |
+| Clearly visible, on battery | Up to 30 fps |
 | Mostly covered by windows | Up to 20 fps |
 | Almost entirely covered | Stopped |
 | Low Power Mode, locked screen or sleeping display | Stopped |
 
-Choose a lower profile from **Quality** to save power: Eco, Balanced and Detail render below full resolution, and on battery they are capped at 30 fps and render slightly smaller. Pause it from the menu when you want a still wallpaper, or quit to close the app completely. Actual frame rates depend on the device and scene. Battery life has not been measured.
+Pause it from the menu when you want a still wallpaper, or quit to close the app completely. The browser previews offer Eco, Balanced and Detail profiles; actual frame rates depend on the device and scene. Battery life has not been measured.
 
 ### Does it monitor my keystrokes?
 
@@ -123,7 +123,7 @@ Open [the local preview](http://127.0.0.1:8080). There is no `npm install` step;
 - Swipe or scroll through the gallery, or use the left and right arrow keys. Open the image or name to enter a scene.
 - Use **Pause / Resume**, **Feed**, **Fullscreen** and **Hide controls** in every scene. **Show controls** brings the controls back.
 - Press **Space** to pause or resume, **F** for fullscreen, and **H** to hide or show controls while a scene has focus.
-- **Quality** offers Eco (20 fps), Balanced (30 fps, the default), Detail (60 fps) and Native (60 fps at full display resolution). The selection is shared between the scenes and remembered. These are frame-rate caps; lower profiles also reduce rendering resolution.
+- **Quality** offers Eco (20 fps), Balanced (30 fps, the default) and Detail (60 fps). The selection is shared between the scenes and remembered. These are frame-rate caps; lower profiles also reduce rendering resolution.
 
 Reduce Motion starts the preview paused. Serve the page over HTTP; opening `index.html` directly will not load its JavaScript modules. Any static server also works, such as `python3 -m http.server 8080 --bind 127.0.0.1` if you have Python installed.
 
