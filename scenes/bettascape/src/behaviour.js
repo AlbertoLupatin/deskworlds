@@ -16,10 +16,11 @@ const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 export const approach = (x, target, rate, dt) => x + (target - x) * (1 - Math.exp(-rate * dt));
 export const smooth01 = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
-const CURIOUS_HOLD = 3.0;    // s of cursor stillness before the fish loses interest
+const CURIOUS_HOLD = 5.0;    // s of cursor stillness before the fish loses interest
 const SURFACE_GAP = 40;      // s at least between air gulps
 const DART_STANDOFF = 0.6;   // body distance from the cursor during a curious dart; the head nearly touches
-const CURIOUS_TURN = 0.5;    // rad a curious fish turns off its broadside toward the cursor
+const CURIOUS_FOLLOW = 2.5;  // 1/s: how quickly the fish's attention catches up with the cursor
+const CURIOUS_TURN = 0.85;   // rad a curious fish turns off its broadside toward the cursor
 const REVERSAL = 2.6;        // rad of heading error beyond which a turn is routed past the viewer
 const LAG_MAX = 0.25, LAG_W = 4.0, LAG_ZETA = 0.45;   // fin lag: reach, spring rate (rad/s), damping
 const LAG_DELAYS = [0, 0.1, 0.22, 0.38];              // s by which the lag reaches points from root to tip
@@ -234,20 +235,20 @@ export function createBetta({ random = Math.random, lifeSeed = 7 } = {}) {
         break;
       }
       case 'curious': {
-        pointer.interest.x = approach(pointer.interest.x, pointer.world.x, 1.0, dt);
-        pointer.interest.y = approach(pointer.interest.y, pointer.world.y, 1.0, dt);
-        pointer.interest.z = approach(pointer.interest.z, pointer.world.z, 1.0, dt);
+        pointer.interest.x = approach(pointer.interest.x, pointer.world.x, CURIOUS_FOLLOW, dt);
+        pointer.interest.y = approach(pointer.interest.y, pointer.world.y, CURIOUS_FOLLOW, dt);
+        pointer.interest.z = approach(pointer.interest.z, pointer.world.z, CURIOUS_FOLLOW, dt);
         const I = pointer.interest;
         const look = I.clone().sub(head).normalize();
         // Bettas inspect with one eye: the body keeps presenting its flank, turning only part way
         // toward the cursor while the eyes track it, and swings round to the other flank only once
         // the cursor has been left behind. Facing it head-on is a brief moment, sometimes with a dart.
         if (now > brain.nextGlance) {
-          if ((I.x - fish.pos.x) * Math.cos(brain.side) < -0.6) brain.side = brain.side === 0 ? Math.PI : 0;
-          brain.faceUntil = random() < 0.15 ? now + rand(1, 1.8) : 0;
+          if ((I.x - fish.pos.x) * Math.cos(brain.side) < -0.35) brain.side = brain.side === 0 ? Math.PI : 0;
+          brain.faceUntil = random() < 0.3 ? now + rand(1, 1.8) : 0;
           brain.standoff = rand(0.8, 1.1);
           if (brain.faceUntil && random() < 0.35) { brain.dartUntil = now + rand(0.6, 1.0); if (random() < 0.4) fish.flare = 1; }
-          brain.nextGlance = brain.faceUntil || now + rand(2.5, 5);
+          brain.nextGlance = brain.faceUntil || now + rand(1.5, 3.5);
         }
         const lookYaw = Math.atan2(-look.z, look.x);
         const yaw = now < brain.faceUntil ? lookYaw : brain.side + clamp(wrapPi(lookYaw - brain.side), -CURIOUS_TURN, CURIOUS_TURN);
@@ -263,7 +264,7 @@ export function createBetta({ random = Math.random, lifeSeed = 7 } = {}) {
         speed = far * Math.min(0.7, dist * 0.8);
         hold = brain.station;
         levelPitch = 0.85;
-        turn = 0.6;
+        turn = 0.9;
         break;
       }
       // Swim for the nearest pellet, slow so the mouth arrives on it, then lunge and snap.
