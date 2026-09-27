@@ -96,7 +96,7 @@ final class DesktopWindow: NSWindow {
 }
 
 /// One screen's worth of aquarium.
-final class Wallpaper: NSObject, WKNavigationDelegate {
+final class Wallpaper: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
   let window: DesktopWindow
   let view: WKWebView
   private var loaded = false
@@ -166,6 +166,7 @@ final class Wallpaper: NSObject, WKNavigationDelegate {
     super.init()
 
     view.navigationDelegate = self
+    settings.userContentController.add(self, name: "ready")
     window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
     window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
     window.ignoresMouseEvents = true
@@ -187,13 +188,14 @@ final class Wallpaper: NSObject, WKNavigationDelegate {
     view.navigationDelegate = nil
     view.configuration.userContentController.removeAllUserScripts()
     view.configuration.userContentController.removeScriptMessageHandler(forName: "report")
+    view.configuration.userContentController.removeScriptMessageHandler(forName: "ready")
     view.removeFromSuperview()
     window.contentView = nil
     window.orderOut(nil)
     window.close()
   }
 
-  /// Send only state changes. didFinish resends once after navigation, so there is no
+  /// Send only state changes. The page's ready message resends once, so there is no
   /// need to cross the WebKit process boundary every second with an unchanged rate.
   @discardableResult
   func setRate(_ wanted: Int) -> Bool {
@@ -245,7 +247,11 @@ final class Wallpaper: NSObject, WKNavigationDelegate {
       "habitatPointer(\(String(format: "%.1f", point.x)),\(String(format: "%.1f", point.y)))")
   }
 
-  func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+  /// The scene has installed its callbacks. WebKit's own didFinish can come before that,
+  /// and a rate sent then would be lost until the next change.
+  func userContentController(
+    _ controller: WKUserContentController, didReceive message: WKScriptMessage
+  ) {
     loaded = true
     send()
   }
