@@ -18,13 +18,13 @@ const EXPOSURE = 0.55;
 const PEELS = 4;
 const RED = new V3(0.72, 0.06, 0.035), BLUE = new V3(0.04, 0.20, 0.58), PALE = new V3(0.40, 0.52, 0.66);
 const FINS = [
-  { fin: 0, res: [64, 240], rays: 46, redBias: 0.02, opacity: 1.0, edge: 0.86, trans: 0.9, seed: 1.3 },
-  { fin: 1, res: [44, 120], rays: 26, redBias: -0.10, opacity: 1.0, edge: 0.86, trans: 0.9, seed: 4.1 },
-  { fin: 2, res: [44, 140], rays: 32, redBias: 0.14, opacity: 1.0, edge: 0.87, trans: 0.9, seed: 7.7 },
-  { fin: 4, side: 1, res: [48, 16], rays: 9, redBias: 0.5, opacity: 0.75, edge: 0.93, trans: 1.0, seed: 2.2 },
-  { fin: 4, side: -1, res: [48, 16], rays: 9, redBias: 0.5, opacity: 0.75, edge: 0.93, trans: 1.0, seed: 5.9 },
-  { fin: 3, side: 1, res: [28, 32], rays: 11, redBias: -0.5, opacity: 0.07, edge: 0.95, trans: 1.6, seed: 3.3, pale: true },
-  { fin: 3, side: -1, res: [28, 32], rays: 12, redBias: -0.5, opacity: 0.07, edge: 0.94, trans: 1.6, seed: 6.6, pale: true },
+  { fin: 0, res: [46, 170], rays: 46, redBias: 0.02, opacity: 1.0, edge: 0.86, trans: 0.9, seed: 1.3 },
+  { fin: 1, res: [32, 85], rays: 26, redBias: -0.10, opacity: 1.0, edge: 0.86, trans: 0.9, seed: 4.1 },
+  { fin: 2, res: [32, 100], rays: 32, redBias: 0.14, opacity: 1.0, edge: 0.87, trans: 0.9, seed: 7.7 },
+  { fin: 4, side: 1, res: [34, 12], rays: 9, redBias: 0.5, opacity: 0.75, edge: 0.93, trans: 1.0, seed: 2.2 },
+  { fin: 4, side: -1, res: [34, 12], rays: 9, redBias: 0.5, opacity: 0.75, edge: 0.93, trans: 1.0, seed: 5.9 },
+  { fin: 3, side: 1, res: [20, 23], rays: 11, redBias: -0.5, opacity: 0.07, edge: 0.95, trans: 1.6, seed: 3.3, pale: true },
+  { fin: 3, side: -1, res: [20, 23], rays: 12, redBias: -0.5, opacity: 0.07, edge: 0.94, trans: 1.6, seed: 6.6, pale: true },
 ];
 const PEEL_BLEND = { blending: THREE.NoBlending, depthTest: true, depthWrite: true };
 const REST_BLEND = {
