@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { QUALITY_PRESETS as presets, qualityName, frameRate, framebufferSize, renderScale } from '../../shared/render-policy.js';
+import { QUALITY_PRESETS as presets, qualityName, activeQuality, frameRate, framebufferSize, renderScale } from '../../shared/render-policy.js';
 import { installControls, reportSceneError, preferredQuality } from '../../shared/controls.js';
 import { createFrameLoop } from '../../shared/frame-loop.js';
 import { randomGenerator } from '../../shared/random.js';
@@ -85,7 +85,7 @@ async function start(){
   changeRate=restart;
   changePower=()=>{resize();restart();};
   function resize(redrawNow=true){
-    const width=stage.clientWidth,height=stage.clientHeight,preset=presets[quality];
+    const width=stage.clientWidth,height=stage.clientHeight,active=activeQuality(quality,onBattery),preset=presets[active];
     const wasZeroSize=zeroSize;
     zeroSize=!(width>0&&height>0);
     if(zeroSize){restart();return;}
