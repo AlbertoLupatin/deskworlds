@@ -1,4 +1,4 @@
-import { QUALITY_PRESETS as presets, qualityName, frameRate, framebufferSize, renderScale } from '../../shared/render-policy.js';
+import { QUALITY_PRESETS as presets, qualityName, activeQuality, frameRate, framebufferSize, renderScale } from '../../shared/render-policy.js';
 import { installControls, reportSceneError, preferredQuality } from '../../shared/controls.js';
 import { createComposite } from './composite.js';
 import * as THREE from 'three';
@@ -143,11 +143,11 @@ async function start(){
   changeRate=restart;
   changePower=()=>{resize();restart();};
   function resize(draw=true){
-    const width=stage.clientWidth,height=stage.clientHeight,preset=presets[quality];
+    const width=stage.clientWidth,height=stage.clientHeight,active=activeQuality(quality,onBattery),preset=presets[active];
     const wasZeroSize=zeroSize;
     zeroSize=!(width>0&&height>0);
     if(zeroSize){restart();return;}
-    anemone.setQuality(quality);
+    anemone.setQuality(active);
     ratio=renderScale(quality,devicePixelRatio,onBattery)*autoScale;
     const {width:w,height:h}=framebufferSize(width,height,ratio,renderer.capabilities.maxTextureSize,preset.pixels);ratio=w/width;renderer.setSize(w,h,false);target.setSize(w,h);post.uniforms.size.value.set(w,h);post.uniforms.aoRadiusScale.value=h/972;
     camera.aspect=width/height;

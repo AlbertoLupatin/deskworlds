@@ -189,7 +189,9 @@ final class Wallpaper: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
     window.setFrame(screen.frame, display: true)
     window.orderFrontRegardless()
 
-    view.load(URLRequest(url: URL(string: "\(sceneScheme)://\(sceneHost)\(world.page)")!))
+    // Native: full display resolution plugged in, the Balanced profile on battery.
+    let page = "\(sceneScheme)://\(sceneHost)\(world.page)?quality=native"
+    view.load(URLRequest(url: URL(string: page)!))
   }
 
   func close() {
