@@ -10,7 +10,7 @@ function setup(reduceMotion = false) {
   let now = 0;
   const handlers = {};
   const classes = new Set();
-  const portals = ['Riverbed', 'Coral reef', 'Betta'].map(name => ({
+  const portals = ['Riverbed', 'Coral reef', 'Betta', 'Plasma globe'].map(name => ({
     offsetWidth: 1000,
     style: { setProperty() {} },
     classList: { toggle(name, on) { this.active = on; } },
@@ -207,25 +207,25 @@ const wheelEvent = (deltaX, deltaY) => ({ deltaX, deltaY, deltaMode: 0, preventD
 }
 {
   const app = setup();
-  const [front, right, left] = [0, 1, 2].map(index => app.read(`layout(${index} - position)`));
+  const [front, right, left] = [0, 1, 3].map(index => app.read(`layout(${index} - position)`));
   assert.equal(front.depth, 0, 'the selected portal faces the viewer');
   assert(Math.abs(right.x - 48) < 1e-9 && Math.abs(left.x + 48) < 1e-9, 'neighbours recede to either side');
   assert(Math.abs(right.depth - 1) < 1e-9 && Math.abs(left.depth - 1) < 1e-9, 'both neighbours rest at the same depth');
   assert(right.turn < 0 && left.turn > 0, 'neighbours turn towards the centre');
   const zIndex = app.portals.map(portal => portal.style.zIndex);
-  assert(zIndex[0] > zIndex[1] && zIndex[1] === zIndex[2], 'the front portal stacks above its neighbours');
-  const back = app.read('layout(1.5)');
+  assert(zIndex[0] > zIndex[1] && zIndex[1] === zIndex[3], 'the front portal stacks above its neighbours');
+  const back = app.read('layout(2)');
   assert(back.depth > 1 && Math.abs(back.x) < 1e-9, 'a portal changing sides passes behind the front one');
 }
 {
   const app = setup(true);
   const selected = () => app.portals.findIndex(portal => portal.classList.active);
   app.handlers.keydown({ key: 'ArrowLeft', preventDefault() {} });
-  assert.equal(selected(), 2, 'going left from the first portal wraps to the last');
-  assert.equal(app.status.textContent, 'Betta');
-  assert.equal(app.portals[2].role, undefined, 'the selected portal is a link');
+  assert.equal(selected(), 3, 'going left from the first portal wraps to the last');
+  assert.equal(app.status.textContent, 'Plasma globe');
+  assert.equal(app.portals[3].role, undefined, 'the selected portal is a link');
   assert.equal(app.portals[0].role, 'button', 'the others select rather than open');
-  for (const expected of [0, 1, 2, 0]) {
+  for (const expected of [0, 1, 2, 3, 0]) {
     app.handlers.keydown({ key: 'ArrowRight', preventDefault() {} });
     assert.equal(selected(), expected, 'going right visits every portal in order and wraps');
   }
@@ -233,13 +233,13 @@ const wheelEvent = (deltaX, deltaY) => ({ deltaX, deltaY, deltaMode: 0, preventD
 }
 {
   const app = setup(true);
-  app.read('select(2)');
+  app.read('select(3)');
   assert.equal(app.read('position'), -1, 'the left neighbour is one step left, not two steps right');
   app.read('select(0)');
   assert.equal(app.read('position'), 0);
   app.read('select(1)');
   assert.equal(app.read('position'), 1, 'the right neighbour is one step right');
   app.read('position = 5; select(0)');
-  assert.equal(app.read('position'), 6, 'selection takes the short way round from any lap');
+  assert.equal(app.read('position'), 4, 'selection takes the short way round from any lap');
 }
 console.log('PASS: gallery axis lock, intent, velocity continuity, gentle completion, interruption, reduced motion, cancellation, ring layout and wrap-around');

@@ -6,9 +6,9 @@
 
 Have you always wanted a little living world on your desktop? Now you can have one :)
 
-Each world is a live 3D scene that reacts to your cursor. There are three so far, all underwater: **Riverbed**, a planted river where a school of fish competes for food, **Coral reef**, a coral reef with clownfish and cleaner shrimp, and **Betta**, a single halfmoon betta on a black background.
+Each world is a live 3D scene that reacts to your cursor. There are four so far. Three are underwater: **Riverbed**, a planted river where a school of fish competes for food, **Coral reef**, a coral reef with clownfish and cleaner shrimp, and **Betta**, a single halfmoon betta on a black background. The fourth, **Plasma globe**, is a plasma lamp glowing on a table in a dark room. Bring the cursor toward the glass and the plasma reaches for it like it would for a fingertip.
 
-Every scene is rendered live with Three.js and WebGL2. Everything runs locally, with no account or internet connection needed after setup. Desktop wallpaper support is **macOS only** for now; all three worlds also run in a browser. The Mac app starts with Riverbed and remembers the world you pick from its menu.
+Every scene is rendered live with Three.js and WebGL2. Everything runs locally, with no account or internet connection needed after setup. Desktop wallpaper support is **macOS only** for now; all four worlds also run in a browser. The Mac app starts with Riverbed and remembers the world you pick from its menu.
 
 ## Install on Mac
 
@@ -34,8 +34,8 @@ You don't need Node.js for the wallpaper. If you already have it, `npm run wallp
 
 Click the Deskworlds icon in the menu bar:
 
-- **World** switches every screen between Riverbed, Coral reef and Betta and remembers your choice.
-- **Feed** drops ten pellets into each screen's scene, eight in Coral reef or six to eight in Betta. Uneaten pellets dissolve after 20–40 seconds of running simulation time in Riverbed, 36 seconds in Coral reef and 30 seconds in Betta, measured from when they touch the water.
+- **World** switches every screen between Riverbed, Coral reef, Betta and Plasma globe and remembers your choice.
+- **Feed** drops ten pellets into each screen's scene, eight in Coral reef or six to eight in Betta. Uneaten pellets dissolve after 20–40 seconds of running simulation time in Riverbed, 36 seconds in Coral reef and 30 seconds in Betta, measured from when they touch the water. Plasma globe has nothing to feed, so the item is dimmed there.
 - **Pause / Resume** controls the animation. Your choice is remembered across restarts.
 - **Quit** closes the app until you open it again or next sign in.
 
@@ -51,7 +51,7 @@ The desktop app supports macOS only. The browser preview needs a browser with We
 
 It uses more power than a still wallpaper because it renders a 3D scene. The amount depends on your Mac, screen resolution and number of displays. There isn't a measured battery-life estimate yet.
 
-All three scenes use the same quality profiles and stop rendering when paused or hidden. The wallpaper also responds to window coverage, battery power, Low Power Mode and screen sleep.
+All four scenes use the same quality profiles and stop rendering when paused or hidden. The wallpaper also responds to window coverage, battery power, Low Power Mode and screen sleep.
 
 With the default Balanced profile, every world uses these limits:
 
@@ -106,6 +106,12 @@ Or use `npm run unwallpaper`. This stops the app, removes its login item and del
 
 Versions before this one set a still image of the scene as the desktop picture. If you installed one of those, choose your wallpaper in System Settings, then delete `~/Pictures/Desktop Habitats.png`.
 
+## How Plasma globe works
+
+A small electrostatic model drives it, and the picture is drawn from that model rather than animated by hand. A charged electrode sits at the centre of the shell. Ionised channels leave it and grow along the electric field, stiffly, with random kinks, lifted a little by the hot gas. Each ends on the inside of the glass in a brush of short surface discharges. Channels carry like charge, so their roots repel and glide apart over the electrode; each lives a few seconds, fades and strikes again where the electrode is emptiest.
+
+A fingertip is a grounded conductor, so it pulls field lines toward itself, more strongly the nearer it is. Channels lean in, one takes the current and turns thick and white-hot, and the electrode potential drops, which dims the rest and lights the gas pink. The channel colour follows the gas: violet and blue lines near the hot electrode, red neon lines at the cooler tips. The glass adds a faint reflection of the channels in its back wall, and the table shows a blurred reflection and the light pool. The camera has a thin-lens depth of field, so channels on the near and far glass are soft while the electrode is sharp.
+
 ## Try it in a browser
 
 With Node.js 20 or newer, run this from the project folder:
@@ -118,9 +124,10 @@ Open [the local preview](http://127.0.0.1:8080). There is no `npm install` step;
 
 - Click a scene to drop food.
 - Move the pointer through a scene to interact.
+- In Plasma globe, move the cursor toward the glass: the channels lean toward it, most go out, and one bright arc runs to the point nearest the cursor. There are no controls or words on the page; Space pauses and F is fullscreen.
 - In Betta, drag to look around the betta and scroll to zoom. Clicking still drops food.
 - Swipe or scroll through the gallery, or use the left and right arrow keys. Open the image or name to enter a scene.
-- Use **Pause / Resume**, **Feed**, **Fullscreen** and **Hide controls** in every scene. **Show controls** brings the controls back.
+- Use **Pause / Resume**, **Feed**, **Fullscreen** and **Hide controls** in the three underwater scenes. **Show controls** brings the controls back.
 - Press **Space** to pause or resume, **F** for fullscreen, and **H** to hide or show controls while a scene has focus.
 - **Quality** offers Eco (20 fps), Balanced (30 fps, the default) and Detail (60 fps). The selection is shared between the scenes and remembered. These are frame-rate caps; lower profiles also reduce rendering resolution.
 

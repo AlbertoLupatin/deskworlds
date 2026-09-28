@@ -19,22 +19,25 @@ let sceneHost = "local"
 
 /// The scenes the app can show, each a directory under scenes/ with a wallpaper.html.
 enum World: String, CaseIterable {
-  case riverscape, reefscape, bettascape
+  case riverscape, reefscape, bettascape, plasmascape
 
   var title: String {
     switch self {
     case .riverscape: "Riverbed"
     case .reefscape: "Coral reef"
     case .bettascape: "Betta"
+    case .plasmascape: "Plasma globe"
     }
   }
+  /// Only worlds with something to eat have anything to feed.
+  var canFeed: Bool { self != .plasmascape }
   var page: String { "/scenes/\(rawValue)/wallpaper.html" }
   /// What shows before the page has drawn anything, matched to each scene's own dark.
   var background: NSColor {
     switch self {
     case .riverscape: NSColor(calibratedRed: 0.031, green: 0.055, blue: 0.047, alpha: 1)
     case .reefscape: NSColor(calibratedRed: 0.043, green: 0.094, blue: 0.145, alpha: 1)
-    case .bettascape: .black
+    case .bettascape, .plasmascape: .black
     }
   }
 
@@ -598,7 +601,7 @@ final class Controller: NSObject, NSApplicationDelegate, NSMenuDelegate {
     pause.isEnabled = !lowPower
     // Food that nothing is going to draw would sit unseen until the scene started
     // again and then all arrive at once, so Feed says so rather than promising a feeding.
-    feed.isEnabled = applied > 0
+    feed.isEnabled = applied > 0 && world.canFeed
   }
 
   /// Every screen, because each one runs its own world rather than one
