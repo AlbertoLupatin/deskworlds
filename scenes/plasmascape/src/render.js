@@ -8,7 +8,7 @@ import { GLOBE, ELECTRODE, SEGMENT_FLOATS } from './plasma.js';
 const V3 = THREE.Vector3;
 
 // The home camera: a 30 degree lens about six globe radii away, a little above the table.
-export const HOME = { fov: 30, height: 0.2, target: new V3(0, -0.28, 0), halfHeight: 1.42, halfWidth: 1.45 };
+export const HOME = { fov: 30, height: 0.2, target: new V3(0, -0.28, 0), halfHeight: 1.7, halfWidth: 1.45 };
 export const TABLE_Y = -1.75;
 const LEVELS = 6;                                  // bloom pyramid depth
 const BLOOM = { weights: [0.6, 0.4, 0.2, 0.08, 0.04], gain: 0.28, halo: new V3(1.0, 0.5, 0.8), exposure: 1.0 };
