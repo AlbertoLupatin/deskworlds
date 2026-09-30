@@ -153,7 +153,7 @@ async function start() {
   backboard.position.set(0, 7, -7.2);
   backboard.receiveShadow = true;
   scene.add(backboard);
-  const { obstacles, landmarks } = await createEnvironment(scene);
+  const { obstacles, landmarks } = createEnvironment(scene);
   const plants = createPlants(scene, {
     ...settings, animatedShadows: profile !== "reference",
   });
