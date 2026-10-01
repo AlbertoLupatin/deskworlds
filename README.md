@@ -6,7 +6,7 @@
 
 Have you always wanted a little living world on your desktop? Now you can have one :)
 
-Each world is a live 3D scene that reacts to your cursor. There are four so far. Three are underwater: **Riverbed**, a planted river where a school of fish competes for food, **Coral reef**, a coral reef with clownfish and cleaner shrimp, and **Betta**, a single halfmoon betta on a black background. The fourth, **Plasma globe**, is a plasma lamp glowing on a table in a dark room. Bring the cursor toward the glass and the plasma reaches for it like it would for a fingertip.
+Each world is a live 3D scene that reacts to your cursor. There are four so far. Three are underwater: **Riverbed**, a planted river where a school of fish competes for food, **Coral reef**, a coral reef with clownfish and cleaner shrimp, and **Betta**, a single halfmoon betta on a black background. The fourth, **Plasma globe**, is a plasma lamp glowing on a walnut desk in a dark room, with moonlight falling through a window beside it. Bring the cursor toward the glass and the plasma reaches for it like it would for a fingertip.
 
 Every scene is rendered live with Three.js and WebGL2. Everything runs locally, with no account or internet connection needed after setup. Desktop wallpaper support is **macOS only** for now; all four worlds also run in a browser. The Mac app starts with Riverbed and remembers the world you pick from its menu.
 

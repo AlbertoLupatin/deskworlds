@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  RIBBON_VERT, RIBBON_FRAG, FOOT_VERT, FOOT_FRAG, ELECTRODE_VERT, ELECTRODE_FRAG, SOLID_VERT, BASE_FRAG, TABLE_FRAG, SEAT_FRAG, STEM_FRAG,
+  RIBBON_VERT, RIBBON_FRAG, FOOT_VERT, FOOT_FRAG, ELECTRODE_FRAG, SOLID_VERT, BASE_FRAG, TABLE_FRAG, WALL_FRAG, STEM_FRAG, WIRE_FRAG,
   GLASS_VERT, GLASS_FRAG, POST_VERT, DOWN_FRAG, UP_FRAG, OUTPUT_FRAG,
 } from './shaders.js';
 import { GLOBE, ELECTRODE, SEGMENT_FLOATS } from './plasma.js';
@@ -10,10 +10,26 @@ const V3 = THREE.Vector3;
 // The home camera: a 30 degree lens about six globe radii away, a little above the table.
 export const HOME = { fov: 30, height: 0.2, target: new V3(0, -0.28, 0), halfHeight: 1.7, halfWidth: 1.45 };
 export const TABLE_Y = -1.75;
+const WALL_Z = -4.2;
 const LEVELS = 6;                                  // bloom pyramid depth
-const BLOOM = { weights: [0.6, 0.4, 0.2, 0.08, 0.04], gain: 0.28, halo: new V3(1.0, 0.5, 0.8), exposure: 1.0 };
+const BLOOM = { weights: [0.6, 0.4, 0.2, 0.08, 0.04], gain: 0.34, halo: new V3(1.0, 0.5, 0.8), exposure: 1.0 };
 const LENS = { blur: 0.022, core: 0.0016 };                      // circle of confusion at unit relative defocus, as a share of the frame height
 const EXPOSURE = 1.0;
+
+// The base in section, from the cup that holds the glass down to the rubber foot on the table.
+// The shader tells the parts apart by height: cup above -1.0, trim ring to -1.04, foot below -1.712.
+function baseProfile() {
+  const cup = [[0.40, -0.93], [0.466, -0.884], [0.474, -0.873], [0.486, -0.868], [0.499, -0.871], [0.507, -0.881], [0.511, -0.9], [0.514, -0.97], [0.512, -0.99], [0.506, -0.997]];
+  const trim = [[0.506, -1.0], [0.52, -1.003], [0.526, -1.012], [0.526, -1.028], [0.52, -1.037], [0.512, -1.04]];
+  // The body flares from the shoulder to the foot along a smooth curve.
+  const body = [[0.53, -1.044], [0.552, -1.058]];
+  for (let k = 1; k <= 20; k++) {
+    const u = k / 20, y = -1.058 - u * 0.622;
+    body.push([0.552 + 0.164 * (1 - Math.pow(1 - u, 1.8)), y]);
+  }
+  const foot = [[0.716, -1.694], [0.712, -1.705], [0.702, -1.711], [0.684, -1.713], [0.684, TABLE_Y]];
+  return [...cup, ...trim, ...body, ...foot].map(([r, y]) => new THREE.Vector2(r, y));
+}
 
 export function homeDistance(aspect) {
   const tan = Math.tan(THREE.MathUtils.degToRad(HOME.fov / 2));
@@ -46,7 +62,7 @@ export function createRenderer(canvas, plasma) {
   const mirror = new THREE.Matrix4().set(1, 0, 0, 0, 0, -1, 0, 2 * TABLE_Y, 0, 0, 1, 0, 0, 0, 0, 1);
 
   const shared = {
-    uEnergy: { value: 0 }, uTint: { value: new V3(0.95, 0.32, 1.0) }, uContact: { value: new V3(0, 0, 1) }, uHaze: { value: 0 },
+    uEnergy: { value: 0 }, uContact: { value: new V3(0, 0, 1) }, uHaze: { value: 0 },
     uRes: { value: new THREE.Vector2(1, 1) }, uFocus: { value: 6 }, uBlur: { value: 4 }, uCoreMax: { value: 2 },
   };
   const roots = Array.from({ length: plasma.roots.length / 4 }, () => new THREE.Vector4());
@@ -62,21 +78,30 @@ export function createRenderer(canvas, plasma) {
 
   // Table and base: dark solids that show only the plasma's light.
   const table = add(new THREE.PlaneGeometry(60, 60).rotateX(-Math.PI / 2).translate(0, TABLE_Y, 0), new THREE.ShaderMaterial({
-    uniforms: { ...shared, uMirror: { value: null }, uHeight: { value: -TABLE_Y } }, vertexShader: SOLID_VERT, fragmentShader: TABLE_FRAG, ...both,
+    uniforms: { ...shared, uMirror: { value: null } }, vertexShader: SOLID_VERT, fragmentShader: TABLE_FRAG, ...both,
   }), -2);
-  const profile = [[0.40, -0.90], [0.43, -0.93], [0.47, -1.0], [0.53, -1.12], [0.61, -1.3], [0.68, -1.52], [0.715, -1.70], [0.715, TABLE_Y]];
-  add(new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 96), new THREE.ShaderMaterial({
+  add(new THREE.PlaneGeometry(40, 20).translate(0, TABLE_Y + 10, WALL_Z), new THREE.ShaderMaterial({
+    uniforms: shared, vertexShader: SOLID_VERT, fragmentShader: WALL_FRAG,
+  }), -2);
+  add(new THREE.LatheGeometry(baseProfile(), 192), new THREE.ShaderMaterial({
     uniforms: shared, vertexShader: SOLID_VERT, fragmentShader: BASE_FRAG, ...both,
+  }), -1);
+  // The power cord leaves the back of the base and trails off across the desk.
+  const cord = new THREE.CatmullRomCurve3([[0.2, -0.6], [0.4, -0.96], [0.86, -1.26], [1.55, -1.22], [2.3, -1.58], [3.2, -2.4], [4.6, -3.1]]
+    .map(([x, z]) => new V3(x, TABLE_Y + 0.014, z)));
+  add(new THREE.TubeGeometry(cord, 160, 0.014, 12), new THREE.ShaderMaterial({
+    uniforms: shared, vertexShader: SOLID_VERT, fragmentShader: BASE_FRAG, defines: { CORD: '' },
   }), -1);
   add(new THREE.CylinderGeometry(0.045, 0.055, 0.8, 24, 1, true).translate(0, -0.55, 0), new THREE.ShaderMaterial({
     uniforms: shared, vertexShader: SOLID_VERT, fragmentShader: STEM_FRAG, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, ...both,
   }), 4);
-  // The seat of the globe: a ring the discharge lights blue where the glass meets the base.
-  add(new THREE.TorusGeometry(0.42, 0.03, 16, 128).rotateX(Math.PI / 2).translate(0, -0.925, 0), new THREE.ShaderMaterial({
-    uniforms: shared, vertexShader: SOLID_VERT, fragmentShader: SEAT_FRAG, ...both,
+  add(new THREE.CylinderGeometry(0.011, 0.011, 0.8, 16, 1, true).translate(0, -0.55, 0), new THREE.ShaderMaterial({
+    uniforms: shared, vertexShader: SOLID_VERT, fragmentShader: WIRE_FRAG,
   }), -1);
-  const electrode = add(new THREE.SphereGeometry(ELECTRODE.radius, 64, 48), new THREE.ShaderMaterial({
-    uniforms: { ...shared, uRoots: { value: roots } }, vertexShader: ELECTRODE_VERT, fragmentShader: ELECTRODE_FRAG, ...both,
+  // Blended by pixel coverage, so the ball's edge is smooth; it still hides the channels behind it.
+  add(new THREE.SphereGeometry(ELECTRODE.radius * 1.04, 64, 48), new THREE.ShaderMaterial({
+    uniforms: { ...shared, uRoots: { value: roots } }, vertexShader: SOLID_VERT, fragmentShader: ELECTRODE_FRAG,
+    transparent: true, depthWrite: true, blending: THREE.NormalBlending,
   }), -1);
 
   // Channels and glass brushes.
@@ -96,7 +121,7 @@ export function createRenderer(canvas, plasma) {
     uniforms: shared, vertexShader: FOOT_VERT, fragmentShader: FOOT_FRAG, transparent: true, depthWrite: false, depthTest: true,
     blending: THREE.AdditiveBlending, ...both,
   }), 2);
-  add(new THREE.SphereGeometry(GLOBE.outer, 96, 64), new THREE.ShaderMaterial({
+  add(new THREE.SphereGeometry(GLOBE.outer * 1.01, 96, 64), new THREE.ShaderMaterial({
     uniforms: shared, vertexShader: GLASS_VERT, fragmentShader: GLASS_FRAG, transparent: true, depthWrite: false, depthTest: true,
     blending: THREE.AdditiveBlending, ...both,
   }), 3);

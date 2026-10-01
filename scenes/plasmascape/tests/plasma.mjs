@@ -20,11 +20,15 @@ const segmentsOf = plasma => Array.from({ length: plasma.state.segmentCount }, (
     }
     assert.ok(s[8] >= 0 && s[9] >= 0 && s[10] >= 0 && s[10] <= 1.0001, 'Intensity and colour position are in range');
   }
-  // Roots spread over the whole electrode: no side is empty.
+  // Lit roots spread over the whole electrode: no side is empty.
   const sums = [0, 0, 0];
-  for (let i = 0; i < plasma.roots.length / 4; i++) for (let a = 0; a < 3; a++) sums[a] += plasma.roots[i * 4 + a] * plasma.roots[i * 4 + 3];
-  const total = plasma.roots.reduce((t, v, i) => i % 4 === 3 ? t + v : t, 0);
-  for (const v of sums) assert.ok(Math.abs(v) / total < 0.2, 'Roots are spread evenly around the electrode');
+  let lit = 0;
+  for (let i = 0; i < plasma.roots.length / 4; i++) {
+    if (plasma.roots[i * 4 + 3] < 0.05) continue;
+    for (let a = 0; a < 3; a++) sums[a] += plasma.roots[i * 4 + a];
+    lit++;
+  }
+  for (const v of sums) assert.ok(Math.abs(v) / lit < 0.2, 'Roots are spread evenly around the electrode');
 }
 
 // The same seed gives the same discharge, a different seed a different one.
@@ -73,7 +77,7 @@ const segmentsOf = plasma => Array.from({ length: plasma.state.segmentCount }, (
   assert.ok(strongest > restStrongest * 1.8, `The finger channel is brighter (${strongest.toFixed(2)} vs ${restStrongest.toFixed(2)})`);
   const widest = Math.max(...segmentsOf(touched).map(s => s[3]));
   assert.ok(widest > 2 * Math.max(...segmentsOf(rest).map(s => s[3])), 'and thicker');
-  assert.ok(touched.state.footCount < rest.state.footCount, 'Most other channels go out');
+  assert.ok(touched.state.footCount < rest.state.footCount, 'Many other channels go out');
   assert.ok(touched.state.energy < restEnergy * 1.5, 'The free channels dim as the finger draws current');
 
   // Proximity is gradual: farther away means a weaker pull.
