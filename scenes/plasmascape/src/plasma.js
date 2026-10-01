@@ -23,7 +23,7 @@ import { randomGenerator } from '../../shared/random.js';
 export const GLOBE = { outer: 1, inner: 0.955 };
 export const ELECTRODE = { radius: 0.19 };
 export const FINGER = { radius: 0.16, reach: 0.55 };   // fingertip radius, and the gap over which it is felt
-export const STREAMERS = 40;
+export const STREAMERS = 26;
 export const SEGMENT_FLOATS = 12;
 export const MAX_SEGMENTS = 9000;
 export const MAX_FEET = 640;
@@ -36,12 +36,13 @@ const STIFFNESS = 0.74;         // how much of the previous heading a channel ke
 const KINK = 1.05;              // sideways kink strength against the field direction
 const RISE = 0.22;              // buoyancy of the hot channel
 const REPEL = 0.2;              // root repulsion
-const CORE = 0.0072;            // channel radius (gaussian sigma) near the electrode
+const CORE = 0.0095;            // channel radius (gaussian sigma) near the electrode
+const TREMBLE = 0.0055;         // amplitude of the fine, fast tremble of a channel
 const WAVE = 1.5;               // spatial frequency of the kinks, per globe radius
 const SOFTEN = 0.12;            // softening length of the finger's field
 const SINK = 2.4;               // finger charge at contact, relative to the electrode
 const BRANCH_MAX = 4;
-const TENDRILS = 3;
+const TENDRILS = 5;
 const TENDRIL_POINTS = 6;
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -127,17 +128,17 @@ export function createPlasma({ random = randomGenerator(1) } = {}) {
     root.set([bx, by, bz], i * 3);
     rootVel.fill(0, i * 3, i * 3 + 3);
     age[i] = 0; span[i] = 1.4 + random() * 3.6; rank[i] = random(); offset[i] = random() * 100;
-    power[i] = 0.3 + 1.1 * Math.pow(random(), 1.8); reach[i] = 0.3 + 0.7 * random();
-    const n = 2 + Math.floor(random() * 3);
+    power[i] = 0.2 + 1.3 * Math.pow(random(), 2); reach[i] = 0.3 + 0.7 * random();
+    const n = 1 + Math.floor(random() * 3);
     branchCount[i] = n;
     for (let b = 0; b < BRANCH_MAX; b++) {
       const at = i * BRANCH_MAX + b;
-      branchAt[at] = 0.22 + random() * 0.55; branchAngle[at] = 0.4 + random() * 0.85;
-      branchTwist[at] = random() * TAU; branchLen[at] = 0.3 + random() * 0.5;
+      branchAt[at] = 0.72 + random() * 0.18; branchAngle[at] = 0.3 + random() * 0.5;
+      branchTwist[at] = random() * TAU; branchLen[at] = 0.2 + random() * 0.3;
     }
     for (let t = 0; t < TENDRILS; t++) {
       const at = i * TENDRILS + t;
-      tendrilAngle[at] = (t + random() * 0.7) * TAU / TENDRILS; tendrilLen[at] = 0.04 + random() * 0.14; tendrilPower[at] = random() < 0.3 ? 0.15 : 0.4 + random() * 0.8;
+      tendrilAngle[at] = (t + random() * 0.7) * TAU / TENDRILS; tendrilLen[at] = 0.03 + random() * 0.09; tendrilPower[at] = random() < 0.3 ? 0.15 : 0.3 + random() * 0.7;
     }
   }
   // Start from an even spread (a Fibonacci lattice, randomly turned) so the pattern is settled at once.
@@ -200,10 +201,10 @@ export function createPlasma({ random = randomGenerator(1) } = {}) {
       main[i] += ((i === state.mainIndex ? 1 : 0) - main[i]) * (1 - Math.exp(-dt / (i === state.mainIndex ? 0.1 : 0.15)));
 
       // Life cycle: fade in, hold, fade out, strike again. A finger takes current from all
-      // channels but those leading to it, so most go out as it closes in.
+      // channels but those leading to it, so many go out as it closes in and the rest dim.
       age[i] += dt;
       const sector = smooth(0.2, 0.85, align);
-      const keep = 1 - 0.9 * Math.pow(near, 0.8) * (1 - 0.35 * sector);
+      const keep = 1 - 0.6 * Math.pow(near, 0.8) * (1 - 0.35 * sector);
       // The channel carrying the finger's current is never let go.
       const carrying = i === state.mainIndex;
       if (carrying) age[i] = Math.min(age[i], span[i] - 0.35);
@@ -240,7 +241,9 @@ export function createPlasma({ random = randomGenerator(1) } = {}) {
       kx += jag * noise(u * 3.1 + seed, v * 3.1 + t * 2, w * 3.1); ky += jag * noise(u * 3.1 + 9.1, v * 3.1 + seed, w * 3.1 - t * 2); kz += jag * noise(u * 3.1 - t * 2, v * 3.1 + 4.4, w * 3.1 + seed);
       const kd = kx * ex + ky * ey + kz * ez;
       kx -= ex * kd; ky -= ey * kd; kz -= ez * kd;
-      const tx = ex + kink * kx, ty = ey + kink * ky + RISE * (1 - f.near * 0.6), tz = ez + kink * kz;
+      // Near the electrode the field is strongest, so a channel leaves it nearly straight.
+      const bend = kink * smooth(ELECTRODE.radius, ELECTRODE.radius + 0.18, r), lift = RISE * (1 - f.near * 0.6) * smooth(ELECTRODE.radius, ELECTRODE.radius + 0.18, r);
+      const tx = ex + bend * kx, ty = ey + bend * ky + lift, tz = ez + bend * kz;
       const tl = Math.hypot(tx, ty, tz) || 1;
       dx = dx * STIFFNESS + tx / tl * (1 - STIFFNESS); dy = dy * STIFFNESS + ty / tl * (1 - STIFFNESS); dz = dz * STIFFNESS + tz / tl * (1 - STIFFNESS);
       const dl = Math.hypot(dx, dy, dz) || 1;
@@ -262,10 +265,28 @@ export function createPlasma({ random = randomGenerator(1) } = {}) {
   let count = 0, footCount = 0;
   // Channel brightness varies along its length in soft beads that drift.
   const bead = (k, phase, steady) => 1 + (0.7 + 0.6 * noise(k * 0.5 + phase, state.time * 2.2, phase) - 1) * (1 - steady);
-  function emit(pts, n, strength, width, s0, s1, profile, phase = 0, steady = 0) {
+  // Its glowing sheath swells and pinches too, more toward the cooler outer end.
+  const swell = (k, u, phase, steady) => (1.45 - 0.85 * u) * (1 + (0.25 + 0.2 * u) * noise(k * 0.31 + phase * 1.7, state.time * 1.6, phase + 11) * (1 - steady));
+  // A live channel never lies still: it trembles finely and fast, more where the field is weak.
+  // The tremble depends only on position, so a branch stays joined to the trunk it leaves.
+  const shaken = new Float32Array(MAX_POINTS * 3);
+  function tremble(pts, n) {
+    const t = state.time * 7;
+    for (let k = 0; k < n; k++) {
+      const a = k * 3, x = pts[a], y = pts[a + 1], z = pts[a + 2];
+      const amp = TREMBLE * smooth(ELECTRODE.radius, 0.6, Math.hypot(x, y, z));
+      const u = x * 34, v = y * 34, w = z * 34;
+      const sx = x + amp * noise(u + t, v, w), sy = y + amp * noise(u, v - t, w + 17), sz = z + amp * noise(u + 41, v, w + t);
+      const fit = Math.min(1, GLOBE.inner / Math.hypot(sx, sy, sz));   // it never leaves the glass
+      shaken[a] = sx * fit; shaken[a + 1] = sy * fit; shaken[a + 2] = sz * fit;
+    }
+    return shaken;
+  }
+  function emit(points, n, strength, width, s0, s1, profile, phase = 0, steady = 0) {
+    const pts = tremble(points, n);
     for (let k = 0; k < n - 1 && count < MAX_SEGMENTS; k++) {
       const u0 = k / (n - 1), u1 = (k + 1) / (n - 1), a = k * 3, b = a + 3;
-      segments.set([pts[a], pts[a + 1], pts[a + 2], width * (1.45 - 0.85 * u0), pts[b], pts[b + 1], pts[b + 2], width * (1.45 - 0.85 * u1),
+      segments.set([pts[a], pts[a + 1], pts[a + 2], width * swell(k, u0, phase, steady), pts[b], pts[b + 1], pts[b + 2], width * swell(k + 1, u1, phase, steady),
         strength * profile(u0) * bead(k, phase, steady), strength * profile(u1) * bead(k + 1, phase, steady), s0 + (s1 - s0) * u0, s0 + (s1 - s0) * u1], count * SEGMENT_FLOATS);
       count++;
     }
@@ -276,7 +297,7 @@ export function createPlasma({ random = randomGenerator(1) } = {}) {
     footCount++;
   }
   const reachesGlass = (pts, n) => Math.hypot(pts[n * 3 - 3], pts[n * 3 - 2], pts[n * 3 - 1]) >= GLOBE.inner - 1e-4;
-  const fadeOut = reach => u => (1 - 0.35 * u) * (1 - (1 - reach) * smooth(0.45, 1, u));
+  const fadeOut = reach => u => (1.5 - 1.05 * u) * (1 - (1 - reach) * smooth(0.45, 1, u));
   const dwindle = u => Math.pow(1 - u, 0.6);
 
   // A side channel leaves `pts` at point k, turned by `angle` about the trunk (twisted by
@@ -298,7 +319,7 @@ export function createPlasma({ random = randomGenerator(1) } = {}) {
     emit(out, m, strength, width, s0, Math.min(1, s0 + 0.45), dwindle, seed);
     if (reachesGlass(out, m)) {
       const e = (m - 1) * 3;
-      addFoot(out[e], out[e + 1], out[e + 2], 0.05, strength * 0.6, out[e] - out[e - 3], out[e + 1] - out[e - 2], out[e + 2] - out[e - 1]);
+      addFoot(out[e], out[e + 1], out[e + 2], 0.02, strength * 0.6, out[e] - out[e - 3], out[e + 1] - out[e - 2], out[e + 2] - out[e - 1]);
     } else if (depth === 0 && m > 8) {
       branch(out, Math.floor(m * 0.5), twist + 2.1, angle * 1.1, length * 0.7, seed + 5.3, strength * 0.6, width * 0.85, s0 + 0.2, share, 1);
     }
@@ -341,14 +362,14 @@ export function createPlasma({ random = randomGenerator(1) } = {}) {
     count = 0; footCount = 0;
     const f = state.finger, near = f.near, { x: cx, y: cy, z: cz } = state.contact;
     // Voltage droop: the finger draws current, so the free channels dim.
-    const droop = 1 - 0.5 * Math.pow(near, 0.9);
+    const droop = 1 - 0.35 * Math.pow(near, 0.9);
     let energy = 0, nearest = -1, nearestGap = Infinity;
 
     for (let i = 0; i < N; i++) {
       pathLength[i] = 0;
       if (level[i] < 0.01) continue;
       const rx = root[i * 3], ry = root[i * 3 + 1], rz = root[i * 3 + 2], pts = paths[i];
-      const n = trace(pts, rx * ELECTRODE.radius, ry * ELECTRODE.radius, rz * ELECTRODE.radius, rx, ry, rz, offset[i], KINK * (1 - 0.6 * near * main[i]), MAX_POINTS, 0.35 + 1.3 * near * main[i]);
+      const n = trace(pts, rx * ELECTRODE.radius, ry * ELECTRODE.radius, rz * ELECTRODE.radius, rx, ry, rz, offset[i], KINK * (1 - 0.85 * near * main[i]), MAX_POINTS, 0.6 - 0.3 * near * main[i]);
       pathLength[i] = n;
       const e = (n - 1) * 3;
       gap[i] = Math.hypot(pts[e] - cx * GLOBE.inner, pts[e + 1] - cy * GLOBE.inner, pts[e + 2] - cz * GLOBE.inner);
@@ -368,10 +389,11 @@ export function createPlasma({ random = randomGenerator(1) } = {}) {
       const strength = level[i] * (power[i] + (1.2 - power[i]) * share) * flick * droop * (1 - 0.92 * captured) * (1 + 5 * share);
       const width = CORE * (1 + 1.8 * share);
       if (share > 0.05) {
-        // The last stretch of the finger's channel closes on the fingertip's landing point.
-        const k0 = Math.max(1, n - 4);
+        // The last stretch of the finger's channel closes on the fingertip's landing point, the
+        // pull easing in over a dozen points so the channel curves in rather than kinks.
+        const k0 = Math.max(1, n - 12);
         for (let k = k0; k < n; k++) {
-          const w = share * smooth(k0 - 1, n - 1, k);
+          const w = share * Math.pow(smooth(k0 - 1, n - 1, k), 1.5);
           pts[k * 3] += (cx * GLOBE.inner - pts[k * 3]) * w; pts[k * 3 + 1] += (cy * GLOBE.inner - pts[k * 3 + 1]) * w; pts[k * 3 + 2] += (cz * GLOBE.inner - pts[k * 3 + 2]) * w;
         }
       }
@@ -387,8 +409,8 @@ export function createPlasma({ random = randomGenerator(1) } = {}) {
       const e = (n - 1) * 3, fx = pts[e], fy = pts[e + 1], fz = pts[e + 2];
       // A landing's glow does not grow with the current: the hot patch is drawn separately at the fingertip.
       const glow = strength / (1 + 5 * share);
-      addFoot(fx, fy, fz, (0.03 + 0.05 * power[i]) * (1 + 0.6 * share), glow * reach[i] * (1 + share), fx - pts[e - 3], fy - pts[e - 2], fz - pts[e - 1]);
-      brush(i, fx, fy, fz, glow * 0.45 * reach[i], CORE * 1.2, share);
+      addFoot(fx, fy, fz, (0.018 + 0.028 * power[i]) * (1 + 0.6 * share), glow * reach[i] * (1 + share), fx - pts[e - 3], fy - pts[e - 2], fz - pts[e - 1]);
+      brush(i, fx, fy, fz, glow * 0.3 * reach[i], CORE * 0.55, share);
     }
     // Where the finger touches, a hot patch on the glass.
     if (near > 0.03) addFoot(cx * GLOBE.inner, cy * GLOBE.inner, cz * GLOBE.inner, 0.05 + 0.05 * near, 3 * Math.pow(near, 2), 0, 1, 0);
