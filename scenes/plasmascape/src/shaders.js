@@ -34,7 +34,7 @@ float noise3(vec3 p) {
 const LAMP = /* glsl */`
 ${NOISE}
 uniform float uEnergy;
-float lampLevel() { return uEnergy * 11.0; }
+float lampLevel() { return uEnergy * 7.5; }
 const vec3 LAMP_TINT = vec3(0.62, 0.22, 1.0);
 const vec3 MOON = vec3(0.30, 0.38, 0.52);
 const vec3 MOON_DIR = vec3(-0.7, 0.68, 0.2);
@@ -137,7 +137,7 @@ void main() {
   vec2 d = p1 - p0;
   float len = length(d);
   d = len > 1e-4 ? d / len : vec2(1.0, 0.0);
-  float ext = 4.5 * max(e0, e1) + 1.5;   // room for the halo, 1.8 sheath widths, to 2.5 of its own
+  float ext = 3.6 * max(e0, e1) + 1.5;
   vec2 pos = mix(p0, p1, aCorner.x) + d * (aCorner.x * 2.0 - 1.0) * ext + vec2(-d.y, d.x) * aCorner.y * ext;
   vA = p0; vB = p1; vSigma = vec2(e0, e1);
   float gain = uGhost > 0.5 ? 0.12 : 1.0;
@@ -166,10 +166,8 @@ void main() {
   float sheath = exp(-0.5 * d2 / (sigma * sigma));
   float sc = clamp(0.3 * sigma, 0.7, uCoreMax);
   float core = exp(-0.5 * d2 / (sc * sc));
-  vec3 hot = mix(vec3(0.5, 0.52, 1.0), vec3(1.0, 0.45, 0.68), smoothstep(0.7, 1.0, s));
-  // Around both, a faint wide halo of gas excited by the channel's ultraviolet.
-  float halo = exp(-0.5 * d2 / (3.24 * sigma * sigma));
-  vec3 light = spectrum(s) * (0.6 * i * sheath + 0.07 * i * halo) + hot * (1.25 * i * core);
+  vec3 hot = mix(vec3(0.30, 0.42, 1.0), vec3(1.0, 0.40, 0.60), smoothstep(0.7, 1.0, s));
+  vec3 light = spectrum(s) * (0.42 * i * sheath) + hot * (0.9 * i * core);
   // A channel carrying a finger's current is hot enough to burn white.
   light += vec3(1.0, 0.9, 1.0) * smoothstep(1.0, 2.6, i) * core * 1.3;
   gl_FragColor = vec4(light, 1.0);
@@ -213,7 +211,7 @@ void main() {
   float halo = exp(-r2 * 1.4);
   float hot = exp(-r2 * 6.0);
   vec3 white = vec3(1.0, 0.75, 0.9);
-  vec3 light = vec3(1.0, 0.14, 0.28) * halo * 0.16 + mix(vec3(1.0, 0.5, 0.7), white, smoothstep(1.2, 2.6, vStrength)) * hot * 0.5;
+  vec3 light = vec3(1.0, 0.14, 0.28) * halo * 0.3 + mix(vec3(1.0, 0.5, 0.7), white, smoothstep(1.2, 2.6, vStrength)) * hot * 0.3;
   light += white * pow(hot, 2.0) * smoothstep(1.2, 2.6, vStrength) * 1.5;
   gl_FragColor = vec4(light * vStrength, 1.0);
 }

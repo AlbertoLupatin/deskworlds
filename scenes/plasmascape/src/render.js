@@ -12,7 +12,7 @@ export const HOME = { fov: 30, height: 0.2, target: new V3(0, -0.28, 0), halfHei
 export const TABLE_Y = -1.75;
 const WALL_Z = -4.2;
 const LEVELS = 6;                                  // bloom pyramid depth
-const BLOOM = { weights: [0.6, 0.4, 0.2, 0.08, 0.04], gain: 0.34, halo: new V3(1.0, 0.5, 0.8), exposure: 1.0 };
+const BLOOM = { weights: [0.6, 0.4, 0.2, 0.08, 0.04], gain: 0.28, halo: new V3(1.0, 0.5, 0.8), exposure: 1.0 };
 const LENS = { blur: 0.022, core: 0.0016 };                      // circle of confusion at unit relative defocus, as a share of the frame height
 const EXPOSURE = 1.0;
 
