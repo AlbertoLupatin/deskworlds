@@ -107,12 +107,6 @@ Or use `npm run unwallpaper`. This stops the app, removes its login item and del
 
 Versions before this one set a still image of the scene as the desktop picture. If you installed one of those, choose your wallpaper in System Settings, then delete `~/Pictures/Desktop Habitats.png`.
 
-## How Plasma globe works
-
-A small electrostatic model drives it, and the picture is drawn from that model rather than animated by hand. A charged electrode sits at the centre of the shell. Ionised channels leave it and grow along the electric field, stiffly, with random kinks, lifted a little by the hot gas. Each ends on the inside of the glass in a brush of short surface discharges. Channels carry like charge, so their roots repel and glide apart over the electrode; each lives a few seconds, fades and strikes again where the electrode is emptiest.
-
-A fingertip is a grounded conductor, so it pulls field lines toward itself, more strongly the nearer it is. Channels lean in, one takes the current and turns thick and white-hot, and the electrode potential drops, which dims the rest and lights the gas pink. The channel colour follows the gas: violet and blue lines near the hot electrode, red neon lines at the cooler tips. The glass adds a faint reflection of the channels in its back wall, and the table shows a blurred reflection and the light pool. The camera has a thin-lens depth of field, so channels on the near and far glass are soft while the electrode is sharp.
-
 ## Try it in a browser
 
 With Node.js 20 or newer, run this from the project folder:
@@ -133,7 +127,6 @@ Open [the local preview](http://127.0.0.1:8080). There is no `npm install` step;
 - **Quality** offers Eco (20 fps), Balanced (30 fps, the default) and Detail (60 fps). The selection is shared between the scenes and remembered. These are frame-rate caps; lower profiles also reduce rendering resolution.
 
 Reduce Motion starts the preview paused. Serve the page over HTTP; opening `index.html` directly will not load its JavaScript modules. Any static server also works, such as `python3 -m http.server 8080 --bind 127.0.0.1` if you have Python installed.
-
 
 ## Credits and license
 
