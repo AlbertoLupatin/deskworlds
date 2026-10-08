@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#080e0c" />
+    <meta name="theme-color" content="#050a08" />
     <meta
       name="description"
-      content="A planted freshwater river. A local, interactive 3D preview."
+      content="Koi in a dark garden pond, seen from above through the moving surface. A local, interactive 3D preview."
     />
-    <title>Riverbed • Deskworlds</title>
+    <title>Koi pond • Deskworlds</title>
     <link rel="icon" href="../../ui/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="style.css" />
     <script type="importmap">
@@ -20,20 +20,20 @@
     </script>
   </head>
   <body>
-    <main id="stage" aria-label="Interactive planted river">
+    <main id="stage" aria-label="Interactive koi pond">
       <canvas
         id="scene"
-        aria-label="A planted freshwater river. Move the pointer near the fish to interact. Click to feed. Space pauses. F enters fullscreen. H hides controls."
         tabindex="0"
+        aria-label="Koi gliding under lily pads in a dark pond, seen from above. Click to feed. Move the cursor slowly and the fish come to it. Space pauses. F enters fullscreen. H hides controls."
       ></canvas>
       <nav class="chrome" aria-label="Worlds">
         <a class="home-link" href="../../" aria-label="Deskworlds home">Deskworlds</a>
         <div class="scene-nav">
-          <span aria-current="page">Riverbed</span>
+          <a href="../riverscape/">Riverbed</a>
           <a href="../reefscape/">Coral reef</a>
           <a href="../bettascape/">Betta</a>
           <a href="../plasmascape/">Plasma globe</a>
-          <a href="../koiscape/">Koi pond</a>
+          <span aria-current="page">Koi pond</span>
         </div>
       </nav>
       <footer class="chrome" aria-label="World controls">

@@ -6,9 +6,9 @@
 
 Have you always wanted a little living world on your desktop? Now you can have one :)
 
-Each world is a live 3D scene that reacts to your cursor. There are four so far. Three are underwater: **Riverbed**, a planted river where a school of fish competes for food, **Coral reef**, a coral reef with clownfish and cleaner shrimp, and **Betta**, a single halfmoon betta on a black background. The fourth, **Plasma globe**, is a plasma lamp glowing on a walnut desk in a dark room, with moonlight falling through a window beside it. Bring the cursor toward the glass and the plasma reaches for it like it would for a fingertip.
+Each world is a live 3D scene that reacts to your cursor. There are five so far. Three are underwater: **Riverbed**, a planted river where a school of fish competes for food, **Coral reef**, a coral reef with clownfish and cleaner shrimp, and **Betta**, a single halfmoon betta on a black background. The fourth, **Plasma globe**, is a plasma lamp glowing on a walnut desk in a dark room, with moonlight falling through a window beside it. Bring the cursor toward the glass and the plasma reaches for it like it would for a fingertip. The fifth, **Koi pond**, looks down through the surface of a dark garden pond, with koi of several varieties cruising under lily pads and the trees mirrored overhead.
 
-Every scene is rendered live with Three.js and WebGL2. Everything runs locally, with no account or internet connection needed after setup. Desktop wallpaper support is **macOS only** for now; all four worlds also run in a browser. The Mac app starts with Riverbed and remembers the world you pick from its menu.
+Every scene is rendered live with Three.js and WebGL2. Everything runs locally, with no account or internet connection needed after setup. Desktop wallpaper support is **macOS only** for now; all five worlds also run in a browser. The Mac app starts with Riverbed and remembers the world you pick from its menu.
 
 ## Install on Mac
 
@@ -34,8 +34,8 @@ You don't need Node.js for the wallpaper. If you already have it, `npm run wallp
 
 Click the Deskworlds icon in the menu bar:
 
-- **World** switches every screen between Riverbed, Coral reef, Betta and Plasma globe and remembers your choice.
-- **Feed** drops ten pellets into each screen's scene, eight in Coral reef or six to eight in Betta. Uneaten pellets dissolve after 20–40 seconds of running simulation time in Riverbed, 36 seconds in Coral reef and 30 seconds in Betta, measured from when they touch the water. Plasma globe has nothing to feed, so the item is dimmed there.
+- **World** switches every screen between Riverbed, Coral reef, Betta, Plasma globe and Koi pond and remembers your choice.
+- **Feed** drops ten pellets into each screen's scene, eight in Coral reef or six to eight in Betta. Uneaten pellets dissolve after 20–40 seconds of running simulation time in Riverbed, 36 seconds in Coral reef, 30 seconds in Betta and 38 seconds in Koi pond, measured from when they touch the water. Plasma globe has nothing to feed, so the item is dimmed there.
 - **Pause / Resume** controls the animation. Your choice is remembered across restarts.
 - **Quit** closes the app until you open it again or next sign in.
 
@@ -51,7 +51,7 @@ The desktop app supports macOS only. The browser preview needs a browser with We
 
 It uses more power than a still wallpaper because it renders a 3D scene. The amount depends on your Mac, screen resolution and number of displays. There isn't a measured battery-life estimate yet.
 
-All four scenes use the same quality profiles and stop rendering when paused or hidden. The wallpaper also responds to window coverage, battery power, Low Power Mode and screen sleep.
+All five scenes use the same quality profiles and stop rendering when paused or hidden. The wallpaper also responds to window coverage, battery power, Low Power Mode and screen sleep.
 
 Plugged in, every world renders at your display's full resolution. On battery it drops to a lower resolution, like the browser previews' Balanced profile. Frame rates follow these limits:
 
@@ -121,8 +121,9 @@ Open [the local preview](http://127.0.0.1:8080). There is no `npm install` step;
 - Move the pointer through a scene to interact.
 - In Plasma globe, move the cursor toward the glass: the channels lean toward it, most go out, and one bright arc runs to the point nearest the cursor. There are no controls or words on the page; Space pauses and F is fullscreen.
 - In Betta, drag to look around the betta and scroll to zoom. Clicking still drops food.
+- In Koi pond, rest the cursor on the water and a curious koi or two come over to look; sweep it fast and the nearest dart away, then settle. A moving cursor trails ripples. Clicking drops two to four pellets where it lands, and the koi rise to take them at the surface.
 - Swipe or scroll through the gallery, or use the left and right arrow keys. Open the image or name to enter a scene.
-- Use **Pause / Resume**, **Feed**, **Fullscreen** and **Hide controls** in the three underwater scenes. **Show controls** brings the controls back.
+- Use **Pause / Resume**, **Feed**, **Fullscreen** and **Hide controls** in the three underwater scenes and Koi pond. **Show controls** brings the controls back.
 - Press **Space** to pause or resume, **F** for fullscreen, and **H** to hide or show controls while a scene has focus.
 - **Quality** offers Eco (20 fps), Balanced (30 fps, the default) and Detail (60 fps). The selection is shared between the scenes and remembered. These are frame-rate caps; lower profiles also reduce rendering resolution.
 
