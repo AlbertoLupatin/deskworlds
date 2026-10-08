@@ -4,11 +4,13 @@ import * as THREE from 'three';
 // tail fin begins (1), `a` is sideways and `b` is up, all in body lengths. The shaders place
 // each vertex on the live backbone by its `s`.
 
-// Half width seen from above, and half depth seen from the side, down the length of the body.
-const WIDTH = [[0, 0], [0.008, 0.032], [0.025, 0.054], [0.055, 0.074], [0.095, 0.09], [0.15, 0.105], [0.22, 0.117], [0.3, 0.124], [0.36, 0.125], [0.45, 0.12], [0.55, 0.112], [0.65, 0.099], [0.75, 0.082], [0.85, 0.064], [0.93, 0.053], [1, 0.049]];
-const DEPTH = [[0, 0], [0.008, 0.024], [0.03, 0.05], [0.07, 0.078], [0.12, 0.102], [0.19, 0.128], [0.28, 0.148], [0.37, 0.155], [0.47, 0.148], [0.58, 0.128], [0.69, 0.103], [0.79, 0.08], [0.88, 0.064], [0.95, 0.058], [1, 0.057]];
-// The head sits low and the back rises to its highest point ahead of the dorsal fin.
-const CENTRE = [[0, -0.03], [0.06, -0.024], [0.15, -0.012], [0.28, 0], [0.5, 0], [1, 0]];
+// Half width seen from above, and half depth seen from the side, down the length of the body: a
+// broad, blunt head, the shoulders fullest a third of the way back, and a long taper to a narrow
+// but deep wrist in front of the tail.
+const WIDTH = [[0, 0], [0.004, 0.026], [0.014, 0.044], [0.032, 0.06], [0.06, 0.074], [0.095, 0.085], [0.14, 0.094], [0.2, 0.105], [0.27, 0.114], [0.35, 0.12], [0.43, 0.119], [0.52, 0.111], [0.62, 0.096], [0.72, 0.076], [0.81, 0.057], [0.89, 0.042], [0.95, 0.034], [1, 0.032]];
+const DEPTH = [[0, 0], [0.004, 0.02], [0.015, 0.036], [0.04, 0.057], [0.08, 0.079], [0.14, 0.103], [0.22, 0.123], [0.32, 0.136], [0.42, 0.135], [0.52, 0.125], [0.62, 0.107], [0.72, 0.086], [0.82, 0.067], [0.9, 0.057], [0.96, 0.054], [1, 0.054]];
+// The head sits low, the snout below the line of the back, which rises to its highest ahead of the dorsal fin.
+const CENTRE = [[0, -0.034], [0.05, -0.027], [0.12, -0.016], [0.25, -0.003], [0.4, 0], [0.7, 0.003], [1, 0.005]];
 
 // Smooth interpolation through a table of [s, value] pairs.
 function curve(table) {
@@ -27,34 +29,38 @@ function curve(table) {
   };
 }
 export const halfWidth = curve(WIDTH), halfDepth = curve(DEPTH), centre = curve(CENTRE);
+const smoothstep = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 export const backHeight = (s) => centre(s) + halfDepth(s);
 
 export const FINS = {
-  pectoral: { root: 0.21, out: 0.105, drop: -0.035, length: 0.18, fan: 0.95 },
-  pelvic: { root: 0.53, out: 0.07, drop: -0.09, length: 0.11, fan: 0.6 },
-  dorsal: { from: 0.375, to: 0.735, height: 0.09 },
-  caudal: { from: 0.95, centre: 0.2, lobe: 0.32, root: 0.05, span: 0.21 },
+  pectoral: { root: 0.215, out: 0.078, drop: -0.072, length: 0.2, fan: 0.95 },
+  pelvic: { root: 0.5, out: 0.055, drop: -0.105, length: 0.12, fan: 0.6 },
+  dorsal: { from: 0.38, to: 0.72, height: 0.085 },
+  caudal: { from: 0.97, centre: 0.15, lobe: 0.29, root: 0.052, span: 0.19 },
 };
 
-export function bodyGeometry(rings = 88, around = 36) {
+export function bodyGeometry(rings = 110, around = 48) {
   const positions = [], uvs = [], index = [];
   const at = (i, j) => i * (around + 1) + j;
   for (let i = 0; i <= rings; i++) {
     // Rings crowd toward the nose, where the outline curves fastest.
     const s = Math.pow(i / rings, 1.45);
     const w = halfWidth(s), d = halfDepth(s), c = centre(s);
-    // The skull is broad and flat on top; the body behind it is a fuller oval.
-    const flat = 1 - 0.3 * Math.max(0, 1 - s / 0.2);
+    // The skull is broad and flat on top; the body behind it is an egg in section, narrower over
+    // the back than across the belly, so the back reads as a soft ridge from above.
+    const flat = 1 - 0.28 * Math.max(0, 1 - s / 0.2);
+    const taper = 0.2 * smoothstep(0.15, 0.5, s);
     for (let j = 0; j <= around; j++) {
       const v = (j / around) * 2 - 1;                    // -1..1 around, 0 on the back
       const phi = v * Math.PI;
       const sin = Math.sin(phi), cos = Math.cos(phi);
-      // The eyes sit high on the sides of the skull and bulge just past its outline, which is
-      // how they show from above.
-      const eye = Math.exp(-(((s - 0.1) / 0.024) ** 2) - (((Math.abs(phi) - 1.0) / 0.4) ** 2));
-      const a = w * Math.sign(sin) * Math.pow(Math.abs(sin), 0.86) + Math.sign(sin) * 0.014 * eye;
-      const up = cos > 0 ? flat : 1;
-      const b = c + d * Math.sign(cos) * Math.pow(Math.abs(cos), 0.86) * up + 0.004 * eye;
+      // The eyes sit on the sides of the skull a little above its middle, and bulge just past
+      // its outline, which is how they show from above.
+      const eye = Math.exp(-(((s - 0.098) / 0.02) ** 2) - (((Math.abs(phi) - 1.28) / 0.3) ** 2));
+      // A slight step where the gill cover overlaps the body behind it.
+      const gill = smoothstep(0.012, 0, Math.abs(s - (0.205 - 0.04 * (1 - Math.cos(phi)) * 0.5))) * Math.sin(Math.abs(phi)) ** 2;
+      const a = w * sin * (1 - taper * cos) / (1 + taper * 0.08) + Math.sign(sin) * (0.009 * eye + 0.0025 * gill);
+      const b = c + d * cos * (cos > 0 ? flat : 0.96) + 0.004 * eye;
       positions.push(s, a, b);
       uvs.push(s, v);
     }
@@ -145,14 +151,14 @@ export function finGeometry() {
 
 // Colour and pattern for each variety. `pattern` picks the rule in the body shader; the three
 // colours are ground, hi (the red) and sumi (the black), in linear light.
-const WHITE = [0.8, 0.77, 0.69], RED = [0.78, 0.085, 0.022], ORANGE = [0.86, 0.2, 0.03], BLACK = [0.012, 0.013, 0.016];
+const WHITE = [0.8, 0.78, 0.71], RED = [0.7, 0.036, 0.011], ORANGE = [0.76, 0.07, 0.014], BLACK = [0.009, 0.01, 0.013];
 export const VARIETIES = {
-  kohaku: { pattern: 0, ground: WHITE, hi: ORANGE, sumi: BLACK, metal: 0, cover: 0.5 },
+  kohaku: { pattern: 0, ground: WHITE, hi: ORANGE, sumi: BLACK, metal: 0, cover: 0.52 },
   sanke: { pattern: 1, ground: WHITE, hi: RED, sumi: BLACK, metal: 0, cover: 0.46 },
   showa: { pattern: 2, ground: WHITE, hi: RED, sumi: BLACK, metal: 0, cover: 0.5 },
-  utsuri: { pattern: 3, ground: [0.88, 0.87, 0.84], hi: WHITE, sumi: BLACK, metal: 0, cover: 0.5 },
-  ogon: { pattern: 4, ground: [0.92, 0.46, 0.035], hi: [1.0, 0.68, 0.14], sumi: BLACK, metal: 1, cover: 0 },
-  chagoi: { pattern: 5, ground: [0.13, 0.085, 0.035], hi: [0.22, 0.15, 0.065], sumi: [0.04, 0.025, 0.012], metal: 0.15, cover: 0 },
+  utsuri: { pattern: 3, ground: [0.84, 0.83, 0.79], hi: WHITE, sumi: BLACK, metal: 0, cover: 0.5 },
+  ogon: { pattern: 4, ground: [0.8, 0.42, 0.04], hi: [0.95, 0.66, 0.16], sumi: BLACK, metal: 1, cover: 0 },
+  chagoi: { pattern: 5, ground: [0.11, 0.06, 0.022], hi: [0.3, 0.19, 0.08], sumi: [0.04, 0.025, 0.012], metal: 0.15, cover: 0 },
   tancho: { pattern: 6, ground: WHITE, hi: RED, sumi: BLACK, metal: 0, cover: 0 },
 };
 

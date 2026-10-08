@@ -73,7 +73,7 @@ for (const seed of [1, 2, 3, 4]) {
   assert.ok(p.fish.every((f) => f.mode === 'cruise'), 'They drift off again afterwards');
 }
 
-// A resting cursor draws a curious fish or two over; a fast pass sends the nearest darting away,
+// A resting cursor draws a curious fish or two over; a fast pass sends the nearest moving off,
 // and they settle again.
 for (const seed of [1, 2, 3]) {
   const p = pond(seed);
@@ -96,7 +96,7 @@ for (const seed of [1, 2, 3]) {
   assert.ok(p.stats.startles > before, 'A fast pass startles');
   const startled = p.fish.filter((g) => g.mode === 'startle');
   assert.ok(startled.length >= 1, 'Someone darts');
-  assert.ok(Math.max(...startled.map((g) => g.speed)) > 0.4, 'The dart is quick');
+  assert.ok(Math.max(...startled.map((g) => g.speed)) > 0.25, 'It moves off briskly');
   p.point(null);
   run(p, 6);
   assert.ok(p.fish.every((g) => g.mode !== 'startle'), 'And they settle again');

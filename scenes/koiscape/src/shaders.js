@@ -62,7 +62,7 @@ uniform float uTime;
 const vec3 SUN_DIR = normalize(vec3(0.34, 1.0, -0.22));       // toward the sun, above the water
 const vec3 SUN = vec3(1.0, 0.93, 0.8) * 2.6;
 const vec3 SKY_LIGHT = vec3(0.92, 0.98, 0.96);                 // what an upturned face sees of the sky
-const vec3 SKY_BRIGHT = vec3(0.55, 0.74, 1.0) * 3.0;
+const vec3 SKY_BRIGHT = vec3(0.7, 0.82, 1.0) * 3.0;
 const vec3 LEAF_DARK = vec3(0.008, 0.016, 0.008);
 const float CANOPY_HEIGHT = 3.2;
 float canopy(vec2 q) {
@@ -70,8 +70,8 @@ float canopy(vec2 q) {
   float n = fbm5(q * 0.7 + vec2(3.7, 1.9));
   // Where the crowns thin out, sky shows through as many small gaps between clusters of leaves.
   float open = 1.0 - smoothstep(0.36, 0.52, n);
-  float holes = fbm3(mat2(0.6, -0.8, 0.8, 0.6) * q * 4.0 + 7.0) + 0.3 * (vnoise(q * 16.0 + 2.0) - 0.5);
-  return smoothstep(0.34, 0.68, holes + (1.0 - open) * 0.5);
+  float holes = fbm3(mat2(0.6, -0.8, 0.8, 0.6) * q * 4.0 + 7.0) + 0.3 * (vnoise(q * 16.0 + 2.0) - 0.5) + 0.12 * (vnoise(q * 43.0 + 5.0) - 0.5);
+  return smoothstep(0.42, 0.6, holes + (1.0 - open) * 0.5);
 }
 // How much direct sun reaches the water at xz: soft, because the gaps are far overhead.
 float sunPatch(vec2 xz) {
@@ -103,6 +103,47 @@ vec3 display(vec3 hdr) {
 }
 `;
 
+// What the water, or the wax of a leaf floating on it, mirrors from overhead: sky through the
+// canopy. q is where the reflected ray meets the canopy and n the mirroring face. The leaves close
+// in over the top of the frame and down its right side, where the menu bar and the icons sit, so
+// those stay dark (hush).
+const MIRROR = /* glsl */`
+uniform vec2 uHalf;                         // half extents of the water in view
+float hushAt(vec2 xz) {
+  vec2 frame = xz / uHalf;
+  return max(smoothstep(-0.6, -0.85, frame.y), smoothstep(0.6, 0.8, frame.x));
+}
+vec3 mirrored(vec2 q, vec3 n, float hush, out float leaves) {
+  leaves = max(canopy(q), hush);
+  vec3 sky = SKY_BRIGHT * (0.3 + 1.0 * smoothstep(0.2, 0.8, fbm3(q * 0.9 + 3.0)));
+  // The brightest sky is toward the sun: facets tilted that way catch it, so every ring and
+  // ripple is lit on one side.
+  sky *= 1.0 + 3.0 * max(0.0, dot(-n.xz, normalize(SUN_DIR.xz)));
+  // Leaves overhead: mostly in their own shade, a few lit through by the sun.
+  vec2 lq = mat2(0.8, -0.6, 0.6, 0.8) * q;
+  float lit = smoothstep(0.55, 0.75, fbm3(lq * 4.0 + 1.7) + 0.25 * (vnoise(lq * 23.0) - 0.5)) * (1.0 - hush * 0.8);
+  vec3 foliage = LEAF_DARK + (vec3(0.1, 0.15, 0.06) * fbm3(lq * 11.0) + vec3(0.25, 0.32, 0.1) * lit) * (1.0 - hush * 0.85);
+  // Sky seen past the leaves picks up a little of their green.
+  return mix(mix(sky, sky * vec3(0.85, 1.0, 0.8), 0.35) * 1.2, foliage, leaves);
+}
+`;
+
+// The ripple field, for things drawn on the surface that ride it: height in metres at a point
+// of water, and its slope.
+const FIELD = /* glsl */`
+uniform sampler2D uRipple;
+uniform vec2 uFieldHalf;
+uniform vec2 uTexel;
+float rippleAt(vec2 xz) {
+  vec2 uv = xz / (2.0 * uFieldHalf) + 0.5;
+  return texture2D(uRipple, vec2(uv.x, 1.0 - uv.y)).r;
+}
+vec2 rippleSlope(vec2 xz) {
+  vec2 e = 2.0 * uFieldHalf * uTexel * 1.5;
+  return vec2(rippleAt(xz + vec2(e.x, 0.0)) - rippleAt(xz - vec2(e.x, 0.0)), rippleAt(xz + vec2(0.0, e.y)) - rippleAt(xz - vec2(0.0, e.y))) / (2.0 * e);
+}
+`;
+
 // Light under the surface. Sun arrives through the gaps in the canopy, focused into moving
 // caustic lines by the ripples and shaded by the lily pads. The water is peaty: it takes red
 // first, then green, so a fish sinking away goes dim and cold well before it is lost.
@@ -110,8 +151,8 @@ const UNDERWATER = /* glsl */`
 ${SKY}
 uniform sampler2D uPadMask;
 uniform vec2 uFieldHalf;                    // half extents of the square of water the mask covers
-const vec3 EXTINCT = vec3(2.35, 1.95, 2.05);  // per metre of path, down and back up together
-const vec3 VEIL = vec3(0.0009, 0.0016, 0.0016);
+const vec3 EXTINCT = vec3(2.4, 2.0, 2.45);   // per metre of path, down and back up together
+const vec3 VEIL = vec3(0.0012, 0.0017, 0.0009);
 const vec3 SUN_UNDER = normalize(vec3(0.25, 1.0, -0.16));   // the sun's direction once bent into the water
 float caustic(vec2 p, float t) {
   const float TAU = 6.28318530718;
@@ -159,7 +200,7 @@ vec3 throughWater(vec3 colour, float d) {
   vec3 t = exp(-EXTINCT * d);
   // Fine silt scatters as much as it absorbs: deeper colours wash out toward the water's own.
   float grey = dot(colour, vec3(0.3, 0.5, 0.2));
-  colour = mix(colour, vec3(grey) * vec3(0.92, 1.0, 0.9), 0.1 + smoothstep(0.2, 0.9, d) * 0.3);
+  colour = mix(colour, vec3(grey) * vec3(0.95, 1.0, 0.85), 0.1 + smoothstep(0.15, 0.8, d) * 0.45);
   return colour * t + VEIL * (1.0 - t);
 }
 `;
@@ -170,6 +211,7 @@ const SPINE = /* glsl */`
 uniform vec4 uSpine[${SPINE_JOINTS}];
 uniform float uLen;
 uniform float uRoll;
+uniform float uGirth;                       // how broad this fish is for its length
 struct Frame { vec3 p; vec3 t; vec3 n; vec3 b; };
 Frame frameAt(float s) {
   float x = clamp(s / ${SPINE_SPAN.toFixed(4)}, 0.0, 1.0) * ${(SPINE_JOINTS - 1).toFixed(1)};
@@ -189,37 +231,41 @@ Frame frameAt(float s) {
   fr.b = up * c - side * r;
   return fr;
 }
+// A point given sideways and up from the spine, in body lengths, on the live body.
+vec3 place(Frame fr, vec2 off) { return fr.p + (fr.n * off.x * uGirth + fr.b * off.y) * uLen; }
 `;
 
 export const BODY_VERT = /* glsl */`
 ${SPINE}
 uniform float uMouth;
+uniform float uGill;
 varying vec2 vUv;
 varying vec3 vRest;
 varying vec3 vNormal;
 varying vec3 vWorld;
 varying vec3 vTangent;
-varying vec3 vSide;
 void main() {
   vec3 rest = position;
   // The lips push forward and open into a round mouth to take food.
   float lip = uMouth * smoothstep(0.045, 0.0, rest.x);
   rest.x -= lip * 0.02;
   rest.yz = mix(rest.yz, vec2(0.0, -0.03) + normalize(rest.yz - vec2(0.0, -0.03) + 1e-5) * 0.038, lip * smoothstep(0.03, 0.004, position.x) * 0.9);
+  // The gill covers lift a fraction with each breath.
+  rest.y *= 1.0 + 0.025 * max(0.0, sin(uGill)) * smoothstep(0.1, 0.2, rest.x) * smoothstep(0.215, 0.2, rest.x);
   Frame fr = frameAt(rest.x);
-  vec3 world = fr.p + (fr.n * rest.y + fr.b * rest.z) * uLen;
+  vec3 world = place(fr, rest.yz);
   vUv = uv;
   vRest = rest;
-  vNormal = normalize(-fr.t * normal.x + fr.n * normal.y + fr.b * normal.z);
+  vNormal = normalize(-fr.t * normal.x + fr.n * normal.y / uGirth + fr.b * normal.z);
   vWorld = world;
   vTangent = fr.t;
-  vSide = fr.n;
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
 `;
 
-// Scales, pattern and skin. A koi's pattern is laid in its scales, so the edge of a marking
-// follows the scale rims rather than cutting straight across them; the head has skin and no scales.
+// Scales, pattern and skin. A koi's pattern is laid in its scales: the back edge of a red patch
+// steps sharply along the scale rims, while along its front edge white scales overlap the red and
+// it shows through them, blurred. The head has skin and no scales.
 export const BODY_FRAG = /* glsl */`
 ${UNDERWATER}
 uniform int uPattern;
@@ -235,8 +281,8 @@ varying vec3 vRest;
 varying vec3 vNormal;
 varying vec3 vWorld;
 varying vec3 vTangent;
-varying vec3 vSide;
-const vec2 SCALES = vec2(40.0, 12.0);       // along the body, and from the back down to the belly
+const vec2 SCALES = vec2(44.0, 15.0);       // per body length along it, and rows from the back to the belly
+const float TAU = 6.28318530718;
 
 // The scale lying over point p, in scale units: its centre, and how far p is in from its free
 // edge (0 at the rim, rising toward where the scale ahead overlaps it).
@@ -246,39 +292,57 @@ float scaleAt(vec2 p, out vec2 centre, out vec2 id) {
   vec2 base = floor(p);
   for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
     vec2 cell = base + vec2(float(i), float(j));
-    vec2 c = cell + vec2(0.5 + 0.5 * mod(cell.y, 2.0), 0.5) + (hash22(cell) - 0.5) * 0.3;
-    float inside = 0.9 - length((p - c) * vec2(0.88, 1.12));
+    vec2 c = cell + vec2(0.5 + 0.5 * mod(cell.y, 2.0), 0.5) + (hash22(cell) - 0.5) * 0.18;
+    float inside = 0.86 - length((p - c) * vec2(0.86, 1.08));
     // Scales overlap like tiles from the head back: of those covering p, the one nearest the head is on top.
-    if (inside > 0.0 && c.x < best) { best = c.x; edge = inside / 0.9; centre = c; id = cell; }
+    if (inside > 0.0 && c.x < best) { best = c.x; edge = inside / 0.86; centre = c; id = cell; }
   }
   return edge;
 }
 
-// The marking at a point of skin (u down the body, v around it from the back): how much hi and how much sumi.
-vec2 marking(vec2 uv, float crisp) {
-  float u = uv.x, v = uv.y;
-  vec2 p = vec2(u * 3.0, v * 1.25) + uSeed * vec2(0.371, 0.113);
-  float wobble = (vnoise(p * 5.0 + 4.0) - 0.5) * 0.07;
-  // Hi stays on the back and sides and stops short of the nose, the eyes and the tail.
-  float back = smoothstep(0.74, 0.6, abs(v) + wobble);
-  float ends = smoothstep(0.045, 0.075, u + wobble * 0.3) * smoothstep(0.985, 0.94, u + wobble);
-  float islands = fbm3(p * vec2(1.05, 1.0));
-  float bands = fbm3(p * vec2(0.82, 0.55) + vec2(31.7, 5.3));
-  float spots = vnoise(p * vec2(3.6, 3.0) + 11.3) * 0.7 + vnoise(p * 7.0 + 2.0) * 0.3;
-  float hi = 0.0, sumi = 0.0;
-  if (uPattern == 0) {                                            // kohaku: red islands on white
-    hi = smoothstep(-crisp, crisp, islands - (1.0 - uCover) + 0.02) * back * ends;
-  } else if (uPattern == 1) {                                     // sanke: kohaku with a few ink spots on the back
-    hi = smoothstep(-crisp, crisp, islands - (1.0 - uCover)) * back * ends;
-    float blocks = vnoise(p * vec2(1.7, 1.4) + 11.3) * 0.8 + vnoise(p * 4.0 + 2.0) * 0.2;
-    sumi = smoothstep(-crisp, crisp, blocks - 0.63) * smoothstep(0.52, 0.36, abs(v)) * smoothstep(0.22, 0.28, u) * smoothstep(0.98, 0.9, u);
-  } else if (uPattern == 2) {                                     // showa: black ground wrapping the body, red and white on it
-    sumi = smoothstep(-crisp, crisp, bands - 0.52);
-    hi = smoothstep(-crisp, crisp, islands - 0.5) * back * ends * (1.0 - sumi);
-  } else if (uPattern == 3) {                                     // shiro utsuri: black and white
-    sumi = smoothstep(-crisp, crisp, bands - 0.5);
-  } else if (uPattern == 6) {                                     // tancho: a single red disc on the crown
-    hi = smoothstep(crisp, -crisp, length(vec2((u - 0.12) / 0.062, (v - 0.04 * (fract(uSeed) - 0.5)) / 0.33)) - 1.0 + wobble * 3.5 + 0.12 * (vnoise(p * 9.0) - 0.5));
+// Organic islands with clean edges: noise warped by itself, so its contours wander and pinch
+// like a real pattern instead of fraying into wisps.
+float islands(vec2 p, float seed) {
+  vec2 q = p + vec2(seed * 0.37, seed * 0.11);
+  vec2 warp = vec2(vnoise(q * 1.3 + 3.1), vnoise(q * 1.3 + 7.7)) - 0.5;
+  q += warp * 1.2;
+  // Mostly one broad octave, with a little finer wander in the edge; stretched out to 0..1 so a
+  // threshold cuts it cleanly instead of leaving wide areas hovering at the edge.
+  return smoothstep(0.22, 0.78, 0.8 * vnoise(q) + 0.2 * vnoise(q * 2.7 + 11.0));
+}
+
+// The marking at a point of skin, as signed fields: x for hi (red), y for sumi (black), each
+// positive where that colour lies and running through zero at its edge.
+vec2 markings(vec2 uv) {
+  float u = uv.x, side = abs(uv.y);
+  vec2 p = vec2(u, uv.y * 0.36) * vec2(5.0, 6.0);                  // skin in body lengths, scaled to patch size
+  float n = islands(p, uSeed);
+  float hi = -1.0, sumi = -1.0;
+  // The red of kohaku, sanke and showa: patches along the back that break into steps across it,
+  // above the lateral line, clear of the wrist of the tail; and a cap over the crown of the head.
+  if (uPattern <= 2) {
+    float steps = cos(TAU * (u * (2.1 + fract(uSeed * 0.13) * 1.2) + fract(uSeed * 0.71)));
+    float body = n - 0.5 + 0.11 * steps + (uCover - 0.5) * 0.55;
+    body -= smoothstep(0.3, 0.58, side + (n - 0.5) * 0.3) * 0.8 + smoothstep(0.76, 0.9, u + (n - 0.5) * 0.08) * 1.2;
+    float headNoise = islands(p * 1.6, uSeed + 41.0);
+    float cap = 1.0 - length(vec2((u - 0.13) / 0.085, uv.y / (0.3 - 0.12 * smoothstep(0.12, 0.05, u)))) + (headNoise - 0.5) * 1.4;
+    cap = cap * 0.35 - step(fract(uSeed * 0.53), 0.12);           // a few have a plain white head
+    // Most break to white behind the head; some run the red on over the shoulders.
+    float neck = smoothstep(0.18, 0.24, u), joined = step(0.6, fract(uSeed * 0.29));
+    hi = mix(cap, mix(body, max(body, cap), joined), neck) - smoothstep(0.05, 0.025, u);
+  }
+  if (uPattern == 1) {                                             // sanke: small ink spots on the back, never the head
+    sumi = islands(p * 1.5, uSeed + 19.0) - 0.8 - smoothstep(0.25, 0.5, side) * 0.3;
+    sumi -= (1.0 - smoothstep(0.24, 0.3, u)) + smoothstep(0.88, 0.95, u);
+  } else if (uPattern == 2 || uPattern == 3) {                     // showa and shiro utsuri: black wrapping the body, and lightning on the head
+    float wrap = islands(p * vec2(0.55, 0.45), uSeed + 5.0) - (uPattern == 2 ? 0.52 : 0.46);
+    wrap += (islands(p * 1.4, uSeed + 9.0) - 0.5) * 0.25;
+    // On the head the black runs as a lightning split, wider toward the snout.
+    float bolt = 0.05 + 0.04 * smoothstep(0.15, 0.04, u) - abs(fbm3(vec2(u * 7.0, uv.y * 1.6) + uSeed) - 0.5);
+    sumi = mix(bolt, wrap, smoothstep(0.17, 0.23, u));
+    if (uPattern == 2) hi -= max(0.0, sumi) * 3.0;
+  } else if (uPattern == 6) {                                      // tancho: one red disc on the crown
+    hi = 1.0 - length(vec2((u - 0.115) / 0.058, (uv.y - 0.03 * (fract(uSeed) - 0.5)) / 0.25)) + (vnoise(p * 9.0) - 0.5) * 0.12;
   }
   return vec2(hi, sumi);
 }
@@ -286,94 +350,107 @@ vec2 marking(vec2 uv, float crisp) {
 void main() {
   float u = vUv.x, v = vUv.y;
   vec3 n = normalize(vNormal);
-  float scaled = smoothstep(0.175, 0.215, u + 0.012 * cos(v * 3.6)) * smoothstep(0.985, 0.93, u);
+  float scaled = smoothstep(0.2, 0.235, u + 0.012 * cos(v * 3.6)) * smoothstep(0.99, 0.95, u);
   float belly = smoothstep(0.62, 0.9, abs(v));
 
   vec2 centre, id;
   float edge = scaleAt(vUv * SCALES, centre, id);
-  // A marking's edge steps along the scale rims, but only partly: the colour sits in the skin
-  // under each scale too, so the steps are soft, not a mosaic.
-  vec2 sharp = marking(mix(vUv, centre / SCALES, scaled * 0.45), mix(0.022, 0.014, scaled));
-  vec2 soft = marking(vUv + vec2(0.012, 0.0), 0.03);
-  vec2 mark = sharp;
-  mark.x = max(mark.x, soft.x * 0.3 * scaled * smoothstep(0.2, 0.6, edge));
   float tone = hash21(id + uSeed);
+  // Colour by the scale lying here, so the back edge of a patch steps along the scale rims; then
+  // where white scales lie along the front edge of a patch, the red shows through them faintly.
+  vec2 here = markings(vUv), onScale = markings(centre / SCALES);
+  vec2 field = mix(here, onScale, scaled * 0.65);
+  vec2 aa = fwidth(here) * 0.8 + 0.004;
+  vec2 mark = smoothstep(-aa, aa, field);
+  float ahead = markings(vUv + vec2(0.03, 0.0)).x;
+  float sashi = smoothstep(-0.07, -0.02, here.x) * smoothstep(0.0, 0.06, ahead - here.x) * scaled;
+  mark.x = max(mark.x, sashi * 0.3 * smoothstep(0.3, 0.8, edge));
+  // Red is laid thickest at a scale's heart and thins toward its free rim.
+  vec3 hi = uHi * (0.92 + 0.12 * tone) * mix(1.0, 1.08 - 0.22 * smoothstep(0.25, 0.0, edge), scaled);
 
   vec3 ground = uGround;
-  vec3 hi = uHi * (0.93 + 0.14 * tone);
-  if (uPattern == 4) {                                            // ogon: one metal colour, paler on the head and belly
-    ground = mix(uGround, uHi, 0.25 + 0.3 * smoothstep(0.3, 0.05, u));
-  } else if (uPattern == 5) {                                     // chagoi: tea brown, each scale edged darker
-    ground = mix(uGround, uHi * vec3(1.15, 0.95, 0.8), (0.25 + 0.5 * smoothstep(0.1, 0.62, edge)) * (0.6 + 0.4 * tone) * scaled + 0.3 * smoothstep(0.3, 0.05, u));
+  if (uPattern == 4) {                                             // ogon: one metal colour, paler on the head
+    ground = mix(uGround, uHi, 0.2 + 0.3 * smoothstep(0.3, 0.05, u));
+  } else if (uPattern == 5) {                                      // chagoi: tea brown, each scale rimmed paler
+    ground = mix(uGround, uHi, (0.3 + 0.25 * smoothstep(0.25, 0.0, edge) * scaled) * mix(0.85, 0.75 + 0.25 * tone, scaled));
   }
   vec3 albedo = mix(ground, hi, mark.x);
-  albedo = mix(albedo, uSumi, mark.y);
-  // Living skin is not paint: the white warms and cools in soft patches.
+  albedo = mix(albedo, uSumi * (0.85 + 0.3 * tone), mark.y);
+  // Living skin is not paint: the white warms and cools in soft patches, and the head and the
+  // throat flush faintly pink where blood shows through.
   float blush = fbm3(vUv * vec2(9.0, 4.0) + uSeed);
-  albedo *= mix(vec3(0.96, 0.98, 1.02), vec3(1.03, 1.0, 0.94), blush);
+  albedo *= mix(vec3(0.97, 0.985, 1.01), vec3(1.02, 1.0, 0.95), blush);
+  float flush = smoothstep(0.24, 0.14, u) * smoothstep(0.1, 0.5, abs(v)) * (1.0 - mark.y) * (1.0 - uMetal);
+  albedo *= mix(vec3(1.0), vec3(1.0, 0.86, 0.82), flush * 0.5);
   // The underside is pale on every variety but the wrapped black ones.
-  albedo = mix(albedo, mix(vec3(0.82, 0.8, 0.74), albedo, mark.y), belly * 0.8);
+  albedo = mix(albedo, mix(vec3(0.78, 0.76, 0.7), albedo, mark.y), belly * 0.8);
+  // The lateral line: a row of pored scales down each flank.
+  float lateral = smoothstep(0.016, 0.0, abs(abs(v) - 0.47 - 0.03 * sin(u * 6.0))) * scaled * smoothstep(0.45, 0.3, edge);
+  albedo *= 1.0 - 0.18 * lateral;
 
-  // Each scale shows as a faint crescent: tucked a little darker under the one ahead, catching
-  // light along its free rim. Only the brown and the metallic fish show a strong net.
-  float tuck = smoothstep(0.1, 0.62, edge);
-  float rim = smoothstep(0.14, 0.0, edge);
-  float aa = clamp(1.0 - fwidth(vUv.x * SCALES.x) * 1.2, 0.0, 1.0);
-  float net = (uPattern == 5 ? 0.2 : uPattern == 4 ? 0.05 : 0.05 + 0.03 * mark.x) * aa * (0.6 + 0.8 * tone);
-  net *= smoothstep(0.2, 0.4, u) * smoothstep(1.0, 0.8, u) * 0.6 + 0.4;
-  albedo *= mix(1.0, 1.0 - net * tuck + 0.05 * rim - net * 0.5 * smoothstep(0.05, 0.0, edge), scaled);
-  n = normalize(n + vTangent * (0.5 - edge) * 0.22 * scaled * aa);
+  // Each scale shows as a crescent: a fine shadow where the one ahead overlaps it, and a paler
+  // free rim. Faint on the plain skin of a kohaku, strong as a net on the metallic and brown fish.
+  float tuck = smoothstep(0.12, 0.6, edge);
+  float rim = smoothstep(0.16, 0.0, edge);
+  float px = clamp(1.0 - fwidth(vUv.x * SCALES.x) * 1.1, 0.0, 1.0);
+  float net = (uPattern == 5 ? 0.05 : uPattern == 4 ? 0.1 : 0.05) * px * (0.7 + 0.6 * tone);
+  albedo *= mix(1.0, 1.0 - net * tuck * 0.6 + net * 0.7 * rim - net * smoothstep(0.06, 0.0, edge), scaled);
+  // Each scale is a shallow dish, its free edge lifted toward the tail and each tilted a little its own way.
+  vec2 tilt = hash22(id + uSeed * 3.1) - 0.5;
+  n = normalize(n + (vTangent * (0.45 - edge) * 0.3 + cross(vTangent, n) * tilt.x * 0.12) * scaled * px);
 
-  // The dorsal fin seen edge-on from above: a pale strip down the spine with a fine shadow each side.
-  float ridgeSpan = smoothstep(0.36, 0.4, u) * smoothstep(0.66, 0.6, u);
-  float ridge = smoothstep(0.022, 0.008, abs(v)) * ridgeSpan;
-  float ridgeEdge = smoothstep(0.012, 0.022, abs(v)) * smoothstep(0.034, 0.024, abs(v)) * ridgeSpan;
-  albedo = mix(albedo, min(albedo * 1.12 + 0.05, vec3(0.9)), ridge * 0.6);
-  albedo *= 1.0 - 0.25 * ridgeEdge;
+  // The dorsal fin, folded or seen edge on from above, as a fine line down the ridge of the back.
+  float ridgeSpan = smoothstep(0.36, 0.4, u) * smoothstep(0.74, 0.68, u);
+  albedo *= 1.0 - 0.3 * smoothstep(0.012, 0.004, abs(v)) * ridgeSpan;
 
   // Head: the gill cover's edge, nostrils, eyes and the mouth.
-  float gill = abs(u - (0.196 - 0.05 * (1.0 - cos(v * 3.4)) * 0.5));
-  albedo *= 1.0 - 0.32 * smoothstep(0.005, 0.0, gill) * smoothstep(0.15, 0.28, abs(v)) * smoothstep(0.95, 0.75, abs(v));
-  albedo *= 1.0 + 0.06 * smoothstep(0.0, 0.004, gill) * smoothstep(0.02, 0.006, gill) * step(0.196, u);
-  vec2 nostril = vec2(vRest.x - 0.036, abs(vRest.y) - 0.024);
-  albedo *= 1.0 - 0.3 * smoothstep(0.004, 0.0015, length(nostril * vec2(0.8, 1.2))) * step(0.0, vRest.z + 0.03);
-  // The eye: a dark pupil in a pale ring, on the bulge high on each side of the skull.
-  vec2 eye = vec2((u - 0.1) / 0.017, (abs(v) - 0.31) / 0.075);
+  float gill = abs(u - (0.205 - 0.04 * (1.0 - cos(v * TAU * 0.5))));
+  albedo *= 1.0 - 0.35 * smoothstep(0.006, 0.0, gill) * smoothstep(0.12, 0.25, abs(v)) * smoothstep(0.9, 0.7, abs(v));
+  vec2 nostril = vec2(vRest.x - 0.042, abs(vRest.y) - 0.026);
+  albedo *= 1.0 - 0.45 * smoothstep(0.0045, 0.0015, length(nostril * vec2(0.8, 1.2))) * step(0.0, vRest.z + 0.02);
+  // The eye: a black pupil in a ring of gold, under a clear dome.
+  vec2 eye = vec2((u - 0.098) / 0.0175, (abs(v) - 0.407) / 0.065);
   float eyeD = length(eye);
-  float iris = smoothstep(1.0, 0.82, eyeD);
-  albedo = mix(albedo, mix(vec3(0.6, 0.56, 0.45), vec3(0.006), smoothstep(0.7, 0.55, eyeD)), iris);
+  float ball = smoothstep(1.0, 0.85, eyeD);
+  vec3 iris = mix(vec3(0.42, 0.3, 0.12), vec3(0.75, 0.6, 0.32), smoothstep(0.55, 0.95, eyeD));
+  albedo = mix(albedo, mix(iris, vec3(0.004), smoothstep(0.6, 0.48, eyeD)), ball);
   float mouth = uMouth * smoothstep(0.016, 0.006, vRest.x + 0.02 * uMouth) * smoothstep(0.036, 0.024, length(vRest.yz - vec2(0.0, -0.03)));
-  albedo = mix(albedo, vec3(0.1, 0.02, 0.02), mouth);
+  albedo = mix(albedo, vec3(0.1, 0.025, 0.02), mouth);
 
-  // Wet skin under a bright sky: soft diffuse that rolls off toward the flanks, a broad sheen
-  // where the back mirrors the sky, and a hard glint where the sun gets through.
+  // Light. Diffuse from the sun, focused into caustics, and from the bright sky overhead.
   vec3 light = lightAt(vWorld, n);
+  vec3 colour = albedo * light * (1.0 - 0.7 * uMetal);
+  // Skin is a little translucent: some light wraps past the edge of the lit side and comes back warm.
+  colour += albedo * albedo * SKY_LIGHT * 0.12 * smoothstep(0.9, 0.2, n.y) * (1.0 - mark.y) * (1.0 - uMetal);
+  // Reflection. Looking up from under water the sky shows only through a window overhead; outside
+  // it the surface mirrors the dark pond. So the back of a fish shines with the sky and leaves, and
+  // its flanks reflect nothing, which is what makes a koi from above look round and wet.
   vec3 view = vec3(0.0, 1.0, 0.0);
   float nv = max(0.0, dot(n, view));
+  vec3 r = reflect(-view, n);
+  float window = smoothstep(0.2, 0.9, r.y);
+  float overhead = canopy(vWorld.xz + r.xz / max(r.y, 0.2) * CANOPY_HEIGHT * 0.3);
+  vec3 env = mix(SKY_BRIGHT * 0.4 * mix(1.0, 0.15, overhead), VEIL * 4.0, 1.0 - window) * padShade(vWorld.xz, 0.03);
+  vec3 f0 = mix(vec3(0.055), albedo * 1.1, uMetal);
+  vec3 fresnel = f0 + (1.0 - f0) * pow(1.0 - nv, 5.0) * 0.4;
+  float sparkle = mix(1.0, 0.45 + 1.1 * tone, scaled * (0.3 + 0.7 * uMetal));
+  colour += fresnel * env * sparkle * (1.0 - ball * 0.5);
+  // The sun: a broad sheen off the wet back and, where the light is focused, a hard glint.
   float sunHere = sunPatch(vWorld.xz) * padShade(vWorld.xz, 0.02);
-  float fres = 0.025 + 0.2 * pow(1.0 - nv, 4.0);
-  // The sky's reflection on the back: a long soft stripe along the spine.
-  float patches = smoothstep(0.42, 0.7, vnoise(vec2(u * 14.0, v * 6.0) + uSeed * 3.0));
-  float skyMirror = (0.6 * smoothstep(0.93, 0.99, nv) * patches + 0.32 * smoothstep(0.75, 0.97, nv)) * (0.7 + 0.3 * tone);
-  vec3 sheen = SKY_BRIGHT * 0.1 * skyMirror * mix(1.0, 0.6 + 1.2 * tone * scaled, uMetal);
   vec3 h = normalize(view + SUN_UNDER);
   float nh = max(0.0, dot(n, h));
-  sheen += SUN * sunHere * (pow(nh, 90.0) * 0.6 + pow(nh, 14.0) * 0.05) * (1.0 + uMetal * 2.0);
-  vec3 colour = albedo * light * (1.0 - fres) * (1.0 - 0.55 * uMetal) + mix(vec3(1.0), albedo * 1.8, uMetal * 0.8) * sheen * (1.0 - iris * 0.5);
-  // A metallic skin mirrors the bright water above it, and each scale, tilted a little its own
-  // way, catches it differently: the sparkle that makes an ogon.
-  float glitter = mix(1.0, 0.7 + 0.6 * tone, scaled) * (1.0 - 0.2 * tuck * scaled);
-  colour += albedo * SKY_LIGHT * uMetal * (0.15 + 0.9 * pow(nv, 3.0)) * glitter * mix(1.0, sunHere * 2.0 + 0.6, 0.3);
+  float lobe = pow(nh, 220.0) * 1.4 + pow(nh, 24.0) * 0.08;
+  colour += SUN * sunHere * lobe * mix(vec3(0.6), albedo * 3.0, uMetal) * sparkle * smoothstep(0.0, 0.25, edge + (1.0 - scaled));
+  // The eye's dome catches a point of sky.
+  colour += ball * smoothstep(0.3, 0.05, length(eye - vec2(-0.25, -0.2))) * 0.5;
   // Flanks turned away from the sky drop into the water's own dark.
-  colour *= mix(0.62, 1.0, smoothstep(-0.25, 0.4, n.y));
-  // A bright point on the eye.
-  colour += iris * smoothstep(0.26, 0.06, length(eye - vec2(-0.25, -0.2))) * 0.6;
+  colour *= mix(0.32, 1.0, smoothstep(-0.25, 0.6, n.y));
 
   float d = max(0.0, -vWorld.y);
   // Where the back or head breaks the surface it is out of the water: no murk over it, and a
   // wet film on it throws back the sky in sharp highlights.
   float above = smoothstep(-0.012, 0.003, vWorld.y);
-  vec3 wet = colour * 1.05 + SKY_BRIGHT * (0.05 + 0.25 * pow(nv, 30.0)) * (0.5 + 0.5 * patches);
+  vec3 wet = colour * 1.05 + SKY_BRIGHT * (0.04 + 0.22 * pow(nv, 30.0)) * (0.6 + 0.4 * fbm3(vUv * vec2(14.0, 6.0)));
   gl_FragColor = vec4(mix(throughWater(colour, d), wet, above), d);
 }
 `;
@@ -385,61 +462,61 @@ attribute vec3 aShape;
 uniform float uPectoral;
 uniform float uPecPhase;
 uniform float uPhase;
-uniform float uAmp;
+uniform float uStroke;
 uniform float uSplay;
 uniform float uSeed;
 varying vec4 vFin;
 varying vec3 vWorld;
-varying float vThin;
 void main() {
   float kind = aFin.x, side = aFin.y, r = aFin.z, q = aFin.w;
   vec3 root = position;
   vec3 world;
-  vThin = 0.0;
   if (kind < 1.5) {
     // Paired fins: rays fan from the hinge. The pectorals sweep out to brake and hover and fold
     // back along the body at speed; each ray trails the one ahead of it as the fin sculls, and the
     // soft outer part lags and curls behind the stiff leading edge.
     bool pectoral = kind < 0.5;
-    float sweep = pectoral ? mix(0.32, 1.25, clamp(uPectoral, 0.0, 1.15)) : 0.5 + 0.14 * uPectoral;
-    float scull = sin(uPecPhase + side * 1.57 - q * 1.3 - r * 1.6);
-    sweep += (pectoral ? 0.22 : 0.08) * scull * (0.4 + uPectoral) * (0.4 + 0.6 * r);
-    float ang = sweep + q * aShape.y * 0.5 - r * r * 0.12 * (1.0 - uPectoral);
+    float sweep = pectoral ? mix(0.3, 1.2, clamp(uPectoral, 0.0, 1.15)) : 0.45 + 0.14 * uPectoral;
+    float scull = sin(uPecPhase + side * 1.57 - q * 1.2 - r * 1.5);
+    sweep += (pectoral ? 0.2 : 0.07) * scull * (0.35 + uPectoral) * (0.4 + 0.6 * r);
+    float ang = sweep + q * aShape.y * 0.5 - r * r * 0.1 * (1.0 - uPectoral);
     // The leading rays are long and stiff, the trailing ones shorter: a rounded paddle.
-    float len = aShape.x * mix(0.7, 1.0, smoothstep(-1.0, 0.2, q)) * (1.0 - 0.18 * smoothstep(0.3, 1.0, q));
+    float len = aShape.x * mix(0.62, 1.0, smoothstep(-1.0, 0.5, q)) * (1.0 - 0.2 * smoothstep(0.55, 1.0, q));
     float reach = r * len;
-    vec3 off = vec3(cos(ang) * reach, side * sin(ang) * reach, -0.22 * sin(ang) * reach);
-    off.z += r * r * len * (0.1 * scull * (0.3 + uPectoral * 0.7) + 0.1 * q * uPectoral);
-    Frame fr = frameAt(root.x);
-    world = fr.p + (-fr.t * off.x + fr.n * (root.y + off.y) + fr.b * (root.z + off.z)) * uLen;
+    vec3 off = vec3(cos(ang) * reach, side * sin(ang) * reach, -0.25 * sin(ang) * reach);
+    // The membrane cups and droops a little behind the leading ray.
+    off.z += r * r * len * (0.1 * scull * (0.3 + uPectoral * 0.7) - 0.08 * (1.0 - q) * 0.5);
+    Frame fr = frameAt(root.x + off.x);
+    world = place(fr, vec2(root.y + off.y / uGirth, root.z + off.z));
   } else if (kind < 2.5) {
     // Dorsal fin: stands on the back, leaning with the swimming wave so a sliver shows from above.
     float s = root.x + aShape.y;
-    float lean = uSplay * 0.65 + 0.6 * uAmp * sin(uPhase - s * ${WAVE.toFixed(2)} - 1.1) + uRoll * 0.6;
+    float lean = uSplay * 0.5 + 0.45 * uStroke * sin(uPhase - s * ${WAVE.toFixed(3)} - 1.1) + uRoll * 0.6;
     Frame fr = frameAt(s);
-    float h = r * aShape.x * (0.75 + 0.25 * smoothstep(0.5, 0.0, uAmp));
-    world = fr.p + (fr.n * (sin(lean) * h) + fr.b * (root.z + cos(lean) * h)) * uLen;
+    float h = r * aShape.x * (0.7 + 0.3 * smoothstep(0.6, 0.0, uStroke));
+    world = place(fr, vec2(sin(lean) * h / uGirth, root.z + cos(lean) * h));
   } else if (kind < 3.5) {
-    // Tail fin: a broad soft fan. Each lobe twists and trails as it sweeps, which is why a tail
-    // seen from above shows as a fan and not an edge; the outer membrane lags the stroke.
+    // Tail fin: a broad soft fan on a narrow wrist. It is a vertical fin, so from straight above it
+    // would be an edge; but its lobes splay apart, the fish carries a slight roll, and the soft
+    // membrane trails behind each stroke, so it shows as a narrow fan that opens and closes.
     float s = root.x + r * aShape.x;
     float b = q * mix(aShape.y, aShape.z, pow(r, 0.7));
-    float lag = r * r * 0.9;
-    float flutter = 0.1 * sin(uPhase * 2.0 - s * 11.0 + q * 2.1) * r;
-    // Seen from above a koi's tail always reads as a fan: the lobes splay and the fish carries a
-    // slight roll, so the fin is held well off the vertical, and the stroke only rocks it.
-    float twist = sign(uSplay) * (1.0 + 0.15 * r) + (0.35 * uAmp + 0.08) * cos(uPhase - s * ${WAVE.toFixed(2)} - 0.3 - lag) * (0.4 + r) + flutter;
-    twist *= mix(0.75, 1.0, abs(q));
+    float lag = r * r * 0.8;
+    float flutter = 0.08 * sin(uPhase * 2.0 - s * 11.0 + q * 2.1) * r;
+    float twist = sign(uSplay) * (0.45 + 0.2 * r) + (0.45 * uStroke + 0.08) * cos(uPhase - s * ${WAVE.toFixed(3)} - 0.3 - lag) * (0.3 + r) + flutter;
+    twist *= mix(0.7, 1.0, abs(q));
     Frame fr = frameAt(s);
-    world = fr.p + (fr.n * (sin(twist) * b) + fr.b * (cos(twist) * b)) * uLen;
-    vThin = r;
+    // The rays bow a little against the stroke, cupping the fan.
+    float cup = 0.03 * r * (1.0 - q * q) * cos(uPhase - s * ${WAVE.toFixed(3)});
+    world = place(fr, vec2((sin(twist) * b + cup) / uGirth, cos(twist) * b));
   } else {
     // Barbels: short whiskers that trail from the corners of the mouth.
     Frame fr = frameAt(root.x);
     float sway = 0.25 * sin(uPecPhase * 0.7 + aShape.z * 2.0 + side);
     vec3 off = vec3(r * aShape.x * (0.35 + 0.5 * r), side * r * aShape.x * (0.75 + sway * r), -r * aShape.x * 0.35);
     off.y += q * aShape.y * (1.0 - 0.7 * r);
-    world = fr.p + (-fr.t * off.x + fr.n * (root.y + off.y) + fr.b * (root.z + off.z)) * uLen;
+    fr = frameAt(root.x + off.x);
+    world = place(fr, vec2(root.y + off.y / uGirth, root.z + off.z));
   }
   vFin = aFin;
   vWorld = world;
@@ -452,9 +529,9 @@ ${UNDERWATER}
 uniform vec3 uFinColour;
 uniform vec3 uFinRoot;
 uniform float uSeed;
+uniform float uMetal;
 varying vec4 vFin;
 varying vec3 vWorld;
-varying float vThin;
 void main() {
   float kind = vFin.x, r = vFin.z, q = vFin.w;
   float d = max(0.0, -vWorld.y);
@@ -462,39 +539,43 @@ void main() {
 #ifdef DEPTH_ONLY
     gl_FragColor = vec4(0.0, 0.0, 0.0, d);
 #else
-    gl_FragColor = vec4(throughWater(vec3(0.55, 0.42, 0.32) * lightAt(vWorld, vec3(0.0, 1.0, 0.0)), d), 0.9);
+    gl_FragColor = vec4(throughWater(mix(uFinRoot, uFinColour, 0.5) * 0.8 * lightAt(vWorld, vec3(0.0, 1.0, 0.0)), d), 0.85 * smoothstep(1.0, 0.7, r));
 #endif
     return;
   }
-  // Fin rays: fine bony struts that branch toward the edge, with clear membrane between. They are
+  // Fin rays: fine bony struts that fork toward the edge, with clear membrane between. They are
   // faded out where they would be finer than a pixel, so they never shimmer.
-  float count = kind < 0.5 ? 14.0 : kind < 1.5 ? 9.0 : kind < 2.5 ? 18.0 : 22.0;
-  float across = ((q * 0.5 + 0.5) * count + 0.25 * sin(q * 7.0 + uSeed) ) * (1.0 + step(0.55, r));
+  float count = kind < 0.5 ? 15.0 : kind < 1.5 ? 9.0 : kind < 2.5 ? 18.0 : 20.0;
+  float across = ((q * 0.5 + 0.5) * count + 0.2 * sin(q * 7.0 + uSeed)) * (1.0 + step(0.6, r));
   float ray = abs(fract(across) - 0.5) * 2.0;
   float w = fwidth(across);
-  float strut = smoothstep(0.35 + w, 0.08 - w, ray) * clamp(1.4 - w * 2.5, 0.0, 1.0);
+  float strut = smoothstep(0.32 + w, 0.06 - w, ray) * clamp(1.4 - w * 2.5, 0.0, 1.0);
+  // Segment joints along each ray, and the membrane gathered into faint pleats between.
+  float joint = smoothstep(0.85, 1.0, sin(r * 70.0 + floor(across) * 1.7)) * strut * 0.3;
   // The edge is soft and a little ragged, the lobes of the tail rounded, and the membrane thins out.
-  float fray = 0.05 * (hash21(vec2(floor(across * 2.0), uSeed)) + 0.6 * sin(across * 6.28));
-  float edge = smoothstep(1.0, 0.86 - fray, r);
+  float fray = 0.06 * (hash21(vec2(floor(across * 2.0), uSeed)) + 0.6 * sin(across * 6.28)) * smoothstep(0.4, 1.0, r);
+  float edge = smoothstep(1.0, 0.88 - fray, r);
   float sides = kind > 1.5 && kind < 2.5 ? smoothstep(1.0, 0.95, abs(q)) : smoothstep(1.0, 0.86, abs(q));
   if (kind > 2.5) {
     float tip = length(vec2(max(0.0, r - 0.6) / 0.4, max(0.0, abs(q) - 0.55) / 0.45));
     edge *= smoothstep(1.0, 0.8, tip);
   }
-  float body = kind < 0.5 ? mix(0.45, 0.08, smoothstep(0.15, 1.0, r)) : mix(0.42, 0.1, smoothstep(0.0, 0.95, r));
-  float rimLine = smoothstep(0.8, 0.95, r) * edge;
-  float alpha = (body + 0.2 * strut + 0.1 * rimLine) * edge * sides;
-  vec3 tint = mix(uFinRoot, uFinColour, smoothstep(0.02, 0.5, r + 0.1 * (hash21(vec2(floor(across), uSeed + 3.0)) - 0.5)));
-  float lead = kind < 1.5 ? smoothstep(0.7, 0.95, q) : 0.0;
-  tint *= (0.8 + 0.35 * strut) * (1.0 - 0.25 * rimLine) * (1.0 + 0.35 * lead);
-  alpha += lead * 0.3 * edge;
-  // Thin membrane: lit from above and glowing with light that comes through it.
+  // Thick and milky at the root, thinning to clear film at the margin.
+  float body = (kind > 2.5 ? mix(0.5, 0.1, smoothstep(0.05, 0.9, r)) : mix(0.6, 0.14, smoothstep(0.05, 0.95, r)));
+  float alpha = (body + 0.28 * strut * (1.0 - 0.5 * r)) * edge * sides;
+  vec3 tint = mix(uFinRoot, uFinColour, smoothstep(0.08, 0.45, r + 0.12 * (hash21(vec2(floor(across), uSeed + 3.0)) - 0.5)));
+  float lead = kind < 1.5 ? smoothstep(0.75, 0.97, q) : 0.0;
+  tint *= (0.82 + 0.3 * strut + joint) * (1.0 + 0.3 * lead);
+  alpha = max(alpha, lead * 0.6 * edge);
 #ifdef DEPTH_ONLY
   if (alpha < 0.06) discard;
   gl_FragColor = vec4(0.0, 0.0, 0.0, d);
 #else
-  vec3 light = lightAt(vWorld, vec3(0.0, 1.0, 0.0)) * 0.9;
-  gl_FragColor = vec4(throughWater(tint * light, d), clamp(alpha, 0.0, 1.0));
+  // Thin membrane: lit from above, and glowing with the light that comes through it.
+  vec3 light = lightAt(vWorld, vec3(0.0, 1.0, 0.0));
+  vec3 colour = tint * light * (0.75 + 0.25 * (1.0 - alpha));
+  colour += uMetal * tint * SKY_BRIGHT * 0.08 * strut;
+  gl_FragColor = vec4(throughWater(colour, d), clamp(alpha, 0.0, 1.0));
 #endif
 }
 `;
@@ -569,16 +650,18 @@ uniform vec2 uTexel;
 uniform vec2 uFieldHalf;
 uniform vec4 uImpulse[12];
 uniform int uCount;
+uniform float uWave;                        // (wave speed x step / cell)^2
 varying vec2 vUv;
 void main() {
   vec2 state = texture2D(uPrev, vUv).rg;
   float sum = texture2D(uPrev, vUv + vec2(uTexel.x, 0.0)).r + texture2D(uPrev, vUv - vec2(uTexel.x, 0.0)).r
     + texture2D(uPrev, vUv + vec2(0.0, uTexel.y)).r + texture2D(uPrev, vUv - vec2(0.0, uTexel.y)).r;
-  float h = 2.0 * state.r - state.g + 0.24 * (sum - 4.0 * state.r);
-  // Rings die away as they spread, faster under a lily pad, and are swallowed at the border.
+  float h = 2.0 * state.r - state.g + uWave * (sum - 4.0 * state.r);
+  // Rings die away as they spread, faster under a lily pad, which they lift and pass on under
+  // weakened, and are swallowed at the border.
   float pad = texture2D(uPadMask, vUv).r;
   vec2 border = min(vUv, 1.0 - vUv) / (uTexel * 24.0);
-  h *= mix(0.9955, 0.93, pad) * mix(0.9, 1.0, clamp(min(border.x, border.y), 0.0, 1.0));
+  h *= mix(0.9955, 0.975, pad) * mix(0.9, 1.0, clamp(min(border.x, border.y), 0.0, 1.0));
   vec2 xz = (vec2(vUv.x, 1.0 - vUv.y) - 0.5) * 2.0 * uFieldHalf;
   for (int i = 0; i < 12; i++) {
     if (i >= uCount) break;
@@ -595,11 +678,11 @@ void main() {
 // they bend the view of what is underneath and swing the reflection of sky and leaves about.
 export const SURFACE_FRAG = /* glsl */`
 ${SKY}
+${MIRROR}
 ${DISPLAY}
 uniform sampler2D uUnder;
 uniform sampler2D uRipple;
 uniform sampler2D uPadMask;
-uniform vec2 uHalf;                         // half extents of the water in view
 uniform vec2 uFieldHalf;
 uniform vec2 uTexel;
 uniform float uCalm;
@@ -723,25 +806,11 @@ void main() {
 
   // Pads shade the water just beside them, away from the sun: a soft drop shadow on what is below.
 
-  // Reflection: what the tilted water mirrors from overhead. The leaves close in over the top of
-  // the frame and down its right side, where the menu bar and the icons sit, so those stay dark.
+  // Reflection: what the tilted water mirrors from overhead.
   float cosine = clamp(n.y, 0.0, 1.0);
   float fresnel = 0.02 + 0.98 * pow(1.0 - cosine, 5.0);
-  vec2 q = xz + (slope + fine) * 1.7;
-  float leaves = canopy(q);
-  vec2 frame = xz / uHalf;
-  float hush = max(smoothstep(-0.6, -0.85, frame.y), smoothstep(0.6, 0.8, frame.x));
-  leaves = max(leaves, hush);
-  vec3 sky = SKY_BRIGHT * (0.3 + 1.0 * smoothstep(0.2, 0.8, fbm3(q * 0.9 + 3.0)));
-  // The brightest sky is toward the sun: facets tilted that way catch it, so every ring and
-  // ripple is lit on one side.
-  sky *= 1.0 + 3.0 * max(0.0, dot(-n.xz, normalize(SUN_DIR.xz)));
-  // Leaves overhead: mostly in their own shade, a few lit through by the sun.
-  vec2 lq = mat2(0.8, -0.6, 0.6, 0.8) * q;
-  float lit = smoothstep(0.55, 0.75, fbm3(lq * 4.0 + 1.7) + 0.25 * (vnoise(lq * 23.0) - 0.5)) * (1.0 - hush * 0.8);
-  vec3 foliage = LEAF_DARK + (vec3(0.1, 0.15, 0.06) * fbm3(lq * 11.0) + vec3(0.25, 0.32, 0.1) * lit) * (1.0 - hush * 0.85);
-  // Sky seen past the leaves picks up a little of their green.
-  vec3 overhead = mix(mix(sky, sky * vec3(0.85, 1.0, 0.8), 0.35) * 1.2, foliage, leaves);
+  float hush = hushAt(xz), leaves;
+  vec3 overhead = mirrored(xz + (slope + fine) * 1.7, n, hush, leaves);
   // Over something bright, a fish near the surface, the mirrored sky and leaves show as a veil
   // across it the way they do in a photograph exposed for the fish: the reflection is laid on more
   // strongly there and dims what is under the dark leaf shapes a little.
@@ -783,22 +852,23 @@ void main() {
 `;
 
 // Lily pads. One instance each: iPlace is x, z, radius and turn; iLook is seed, age, lift, notch.
+// A pad is a thin, limp leaf: as rings run under it, it flexes with the water, so the sky in
+// its wax swims the way it does in the water around it.
 export const PAD_VERT = /* glsl */`
+${FIELD}
 attribute vec4 iPlace;
 attribute vec4 iLook;
 varying vec2 vPolar;
 varying vec2 vWorld;
 varying vec4 vLook;
-varying float vRim;
+varying vec2 vSlope;
 void main() {
   float notch = iLook.w;
   float theta = mix(notch, 6.28318530718 - notch, position.x) + iPlace.w;
   float seed = iLook.x * 40.0;
-  // Not quite a circle: the rim wanders, and the lobes either side of the notch round off.
-  // Each leaf a little lopsided, then a wandering edge on top.
+  // Not quite a circle: each leaf a little lopsided, then a wandering edge on top.
   float rim = 1.0 + 0.06 * sin(position.x * 6.283 + seed * 2.0) + 0.03 * sin(position.x * 12.566 * 1.5 + seed) + 0.02 * sin(position.x * 12.566 * 4.0 + seed * 1.7) + 0.01 * sin(position.x * 12.566 * 9.0 + seed * 2.3) + 0.005 * sin(position.x * 12.566 * 17.0 + seed * 3.1);
-  // The lobes either side of the slit round off a little at their tips.
-  // The lobes either side of the slit run out to points, and sometimes cross.
+  // The lobes either side of the slit run out to points.
   float lobe = 1.0 + 0.03 * (smoothstep(0.04, 0.0, position.x) + smoothstep(0.96, 1.0, position.x)) * position.y;
   float rho = position.y * iPlace.z * rim * lobe;
   // Not quite round: a little longer one way than the other.
@@ -807,98 +877,101 @@ void main() {
   vPolar = vec2(position.x, position.y);
   vWorld = xz;
   vLook = iLook;
-  vRim = rim;
+  // The leaf follows the water under it, stiffer toward the stem: the slope of the rings where it
+  // lies, and the tilt of the whole leaf as a ring lifts one side before the other.
+  float r = iPlace.z;
+  vec2 whole = vec2(rippleAt(iPlace.xy + vec2(r, 0.0)) - rippleAt(iPlace.xy - vec2(r, 0.0)), rippleAt(iPlace.xy + vec2(0.0, r)) - rippleAt(iPlace.xy - vec2(0.0, r))) / (2.0 * r);
+  vSlope = mix(whole, rippleSlope(xz), 0.35 + 0.65 * position.y);
   // The rim turns up a little, more on old pads.
   float curl = smoothstep(0.82, 1.0, position.y) * (0.004 + 0.006 * iLook.y);
   // Later pads lie over earlier ones where they overlap.
-  float y = 0.004 + 0.0004 * float(gl_InstanceID) + 0.006 * iLook.z * position.y + curl + 0.0002 * position.x;
+  float y = 0.004 + 0.0004 * float(gl_InstanceID) + 0.006 * iLook.z * position.y + curl + 0.0002 * position.x + rippleAt(xz);
   gl_Position = projectionMatrix * viewMatrix * vec4(xz.x, y, xz.y, 1.0);
 }
 `;
 export const PAD_FRAG = /* glsl */`
 ${SKY}
+${MIRROR}
 ${DISPLAY}
 varying vec2 vPolar;
 varying vec2 vWorld;
 varying vec4 vLook;
-varying float vRim;
+varying vec2 vSlope;
 void main() {
   float a = vPolar.x, r = vPolar.y;
   float seed = vLook.x, age = vLook.y;
-  // Veins fan from the stem, forking as they go: raised a little, so they catch light on one side.
+  // Veins fan from the stem, forking as they go: sunk a little into the leaf, so they show as
+  // fine lines in its sheen more than in its colour.
   float fan = a * 21.0 + 0.8 * sin(a * 7.0 + seed * 30.0) + 0.15 * sin(r * 9.0 + a * 40.0);
   float main = abs(fract(fan) - 0.5) * 2.0;
   float fork = abs(fract(fan * 2.0 + 0.25) - 0.5) * 2.0;
-  float vein = smoothstep(0.12 + 0.06 * r, 0.02, main) * smoothstep(0.03, 0.15, r) * smoothstep(1.0, 0.75, r);
-  vein = max(vein, 0.5 * smoothstep(0.14, 0.02, fork) * smoothstep(0.45, 0.6, r) * smoothstep(0.98, 0.85, r));
+  float vein = smoothstep(0.1 + 0.05 * r, 0.02, main) * smoothstep(0.03, 0.15, r) * smoothstep(1.0, 0.75, r);
+  vein = max(vein, 0.5 * smoothstep(0.12, 0.02, fork) * smoothstep(0.45, 0.6, r) * smoothstep(0.98, 0.85, r));
   float aa = clamp(1.5 - fwidth(fan) * 3.0, 0.0, 1.0);
   vein *= aa;
   float mottle = fbm3(vWorld * 18.0 + seed * 50.0);
   float fine = vnoise(vWorld * 160.0 + seed * 9.0);
-  // A muted, slightly bluish green with a waxy bloom; young ones are small and bronze; old ones
-  // pale and go brown in patches from the rim.
-  vec3 green = mix(vec3(0.05, 0.078, 0.036), vec3(0.072, 0.1, 0.05), mottle);
-  green = mix(green, vec3(0.078, 0.105, 0.056), 0.4 * smoothstep(0.25, 0.0, r));
-  // Each leaf its own green, from olive through blue-green to yellowing.
+  // A deep, slightly bluish green; each leaf its own, from olive through blue-green. Young ones
+  // are small and bronze-red; old ones pale and go yellow and brown from the rim inward.
+  vec3 green = mix(vec3(0.016, 0.04, 0.013), vec3(0.03, 0.058, 0.02), mottle);
   float hue = fract(seed * 7.13);
-  green *= mix(vec3(0.92, 1.0, 1.08), vec3(1.12, 1.02, 0.78), hue);
-  // Darker where water lies along the slit and round the heart of the leaf.
-  green *= 1.0 - 0.25 * smoothstep(0.08, 0.0, min(a, 1.0 - a) * r * 6.0) - 0.15 * smoothstep(0.3, 0.05, r);
+  green *= mix(vec3(0.9, 1.0, 1.1), vec3(1.15, 1.04, 0.75), hue);
+  green = mix(green, green * vec3(1.15, 1.1, 0.9), 0.4 * smoothstep(0.25, 0.0, r));
   // Water standing on the leaf darkens it in soft pools.
-  green *= 1.0 - 0.18 * smoothstep(0.6, 0.72, fbm3(vWorld * 5.0 + seed * 21.0));
-  vec3 young = mix(vec3(0.11, 0.05, 0.03), vec3(0.08, 0.075, 0.03), mottle);
+  green *= 1.0 - 0.2 * smoothstep(0.6, 0.72, fbm3(vWorld * 5.0 + seed * 21.0));
+  vec3 young = mix(vec3(0.07, 0.022, 0.012), vec3(0.05, 0.04, 0.014), mottle);
   vec3 albedo = mix(young, green, smoothstep(0.08, 0.3, age));
   float tired = smoothstep(0.65, 1.0, age);
-  // The heart where the stem joins: a darker reddish spot.
-  albedo = mix(albedo, vec3(0.07, 0.04, 0.03), smoothstep(0.08, 0.02, r) * 0.7);
+  // The heart where the stem joins.
+  albedo = mix(albedo, vec3(0.035, 0.03, 0.012), smoothstep(0.07, 0.02, r) * 0.6);
   float blotch = smoothstep(0.58, 0.72, fbm3(vWorld * 8.0 + seed * 77.0) + 0.3 * r * tired);
-  albedo = mix(albedo, vec3(0.09, 0.08, 0.035), blotch * (0.1 + 0.4 * tired));
-  // Old leaves yellow and then brown from the margin inward.
+  albedo = mix(albedo, vec3(0.06, 0.055, 0.018), blotch * (0.1 + 0.4 * tired));
   float margin = smoothstep(0.55 - 0.3 * tired, 1.0, r + 0.15 * (fbm3(vWorld * 9.0 + seed * 13.0) - 0.5));
   margin *= smoothstep(0.35, 0.7, vnoise(vec2(a * 6.0, seed * 7.0)));
-  albedo = mix(albedo, vec3(0.16, 0.13, 0.04), margin * tired * 0.8);
+  albedo = mix(albedo, vec3(0.12, 0.09, 0.02), margin * tired * 0.8);
   float rot = smoothstep(0.66, 0.8, fbm3(vWorld * 14.0 + seed * 13.0) + 0.35 * smoothstep(0.8, 1.0, r)) * tired * smoothstep(0.6, 1.0, r);
-  albedo = mix(albedo, vec3(0.1, 0.06, 0.025), rot);
-  albedo *= 1.0 + 0.22 * vein;
-  // Dust and bits of debris settled on the leaf.
-  vec2 dp = vWorld * 260.0 + seed * 40.0;
-  float dust = step(0.985, hash21(floor(dp))) * smoothstep(0.35, 0.15, length(fract(dp) - 0.5));
-  albedo = mix(albedo, vec3(0.12, 0.1, 0.07), dust * 0.7);
-  albedo *= 0.95 + 0.1 * fine;
-  // The very rim is thin, reddish, and nibbled here and there; a few holes eaten through.
+  albedo = mix(albedo, vec3(0.06, 0.03, 0.012), rot);
+  albedo *= 1.0 + 0.12 * vein;
+  albedo *= 0.94 + 0.12 * fine;
   // Mostly a smooth rim, with an occasional nick, and on old leaves a ragged hole or two.
   float bite = smoothstep(0.72, 0.8, vnoise(vec2(a * 30.0, seed * 9.0))) * (0.3 + tired);
   float rimAt = 0.993 - 0.035 * bite * (0.6 + 0.4 * vnoise(vec2(a * 40.0, seed)));
   float cover = clamp((rimAt - r) / max(fwidth(r), 1e-4) + 0.5, 0.0, 1.0);
   if (cover <= 0.0) discard;
-  float hole = smoothstep(0.8, 0.84, fbm3(vWorld * 24.0 + seed * 31.0) + 0.08 * vnoise(vWorld * 140.0)) * tired * smoothstep(0.3, 0.5, r) * smoothstep(0.95, 0.85, r);
-  if (hole > 0.5) discard;
-  float holeRim = smoothstep(0.74, 0.8, fbm3(vWorld * 24.0 + seed * 31.0) + 0.08 * vnoise(vWorld * 140.0)) * tired * smoothstep(0.3, 0.5, r);
-  albedo = mix(albedo, vec3(0.18, 0.15, 0.05), holeRim * 0.7);
-  // The turned-up rim shows a sliver of the paler, reddish underside.
-  float edge = smoothstep(0.975, 0.998, r);
-  albedo = mix(albedo, albedo * vec3(1.1, 1.0, 0.85), edge * 0.5);
-  // Leaf normal: a gentle dish, the turned-up rim, the raised veins and the puckers between them.
+  float holeField = fbm3(vWorld * 24.0 + seed * 31.0) + 0.08 * vnoise(vWorld * 140.0);
+  if (smoothstep(0.8, 0.84, holeField) * tired * smoothstep(0.3, 0.5, r) * smoothstep(0.95, 0.85, r) > 0.5) discard;
+  albedo = mix(albedo, vec3(0.13, 0.1, 0.03), smoothstep(0.74, 0.8, holeField) * tired * smoothstep(0.3, 0.5, r) * 0.7);
+  // The turned-up rim shows a sliver of the red underside.
+  float edge = smoothstep(0.965, 0.995, r / rimAt);
+  albedo = mix(albedo, vec3(0.09, 0.02, 0.012), edge * 0.7);
+  // Leaf normal: a gentle dish, the turned-up rim, sunken veins and soft puckers, and the swell of
+  // the water it rides on.
   vec2 dir = vec2(cos(a * 6.28), sin(a * 6.28));
-  vec3 n = vec3((vnoise(vWorld * 25.0 + seed) - 0.5) * 0.12, 1.0, (vnoise(vWorld * 25.0 + seed + 5.0) - 0.5) * 0.12);
-  n.xz -= dir * (0.03 + 0.1 * smoothstep(0.9, 1.0, r));
-  n.xz += dir.yx * vec2(-1.0, 1.0) * (fract(fan) - 0.5) * 0.12 * vein;
+  vec3 n = vec3((vnoise(vWorld * 9.0 + seed) - 0.5) * 0.06, 1.0, (vnoise(vWorld * 9.0 + seed + 5.0) - 0.5) * 0.06);
+  n.xz -= dir * (0.025 + 0.14 * smoothstep(0.9, 1.0, r));
+  n.xz -= dir.yx * vec2(-1.0, 1.0) * (fract(fan) - 0.5) * 0.08 * vein;
+  n.xz -= vSlope * 1.4;
   n = normalize(n);
   float sun = sunPatch(vWorld);
   float facing = max(0.0, dot(n, SUN_DIR));
+  vec3 colour = albedo * (SUN * sun * facing + SKY_LIGHT * 0.8 * (0.5 + 0.5 * n.y));
+  // The wax is glossy: it mirrors the sky and the canopy like the water does, only softer.
+  float hush = hushAt(vWorld);
+  float leaves;
+  vec3 overhead = mirrored(vWorld + n.xz * 1.7, n, hush, leaves);
+  float fresnel = 0.045 + 0.95 * pow(1.0 - clamp(n.y, 0.0, 1.0), 5.0);
+  colour += overhead * fresnel * (1.0 - 0.5 * vein) * (1.0 - 0.6 * rot);
   vec3 h = normalize(SUN_DIR + vec3(0.0, 1.0, 0.0));
   float nh = max(0.0, dot(n, h));
-  // Waxy: a soft sheen of the sky over the whole leaf and a sharper one from the sun.
-  float leavesOver = canopy(vWorld);
-  vec3 skyMirror = mix(SKY_BRIGHT, LEAF_DARK, leavesOver) * 0.016 * (0.4 + 0.6 * smoothstep(-0.8, 0.8, sin(a * 6.283 + seed * 6.0) * r));
-  vec3 colour = albedo * (SUN * sun * facing + SKY_LIGHT * 0.85 * (0.5 + 0.5 * n.y)) + skyMirror
-    + SUN * sun * (pow(nh, 30.0) * 0.06 + pow(nh, 6.0) * 0.02) + SKY_LIGHT * 0.025 * pow(max(0.0, n.y), 40.0);
+  colour += SUN * sun * (pow(nh, 120.0) * 0.5 + pow(nh, 12.0) * 0.015) * (1.0 - hush);
   // Beads of water sit on some pads and catch the light.
   vec2 b = vWorld * 55.0 + seed * 17.0;
   vec2 bi = floor(b);
   float bead = step(0.95, hash21(bi + seed)) * smoothstep(0.14, 0.07, length(fract(b) - 0.3 - 0.4 * hash22(bi)));
   colour = mix(colour, colour * 0.6, bead * 0.5);
   colour += bead * smoothstep(0.06, 0.0, length(fract(b) - 0.28 - 0.4 * hash22(bi))) * (0.15 + 1.5 * sun) * vec3(1.0, 0.98, 0.9) * smoothstep(0.9, 0.6, r);
+  // Where the leaf meets the water, a fine dark line of meniscus.
+  colour *= 1.0 - 0.5 * smoothstep(0.975, 0.995, r / rimAt);
   gl_FragColor = vec4(display(colour), cover);
 }
 `;
