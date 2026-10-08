@@ -10,6 +10,7 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
@@ -21,6 +22,7 @@ import * as WorkspaceThumbnail from 'resource:///org/gnome/shell/ui/workspaceThu
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension, InjectionManager} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {coverGeometry, desktopPointer, desktopRates, pollInterval} from './desktop-policy.js';
 
 const TITLE = '@deskworlds-renderer!';
 const SCENES = [
@@ -32,9 +34,6 @@ const SCENES = [
 ];
 const CONFIG = GLib.build_filenamev([GLib.get_user_config_dir(), 'deskworlds', 'wallpaper.json']);
 const CLIPS = GLib.build_filenamev([GLib.get_user_data_dir(), 'deskworlds', 'clips']);
-// Frame rates the host asks for: plugged in, on battery, desktop mostly covered.
-const RATE_AC = 30, RATE_BATTERY = 20, RATE_PARTLY_COVERED = 15;
-
 const isRenderer = (window) => Boolean(window?.title?.startsWith(TITLE));
 
 function readConfig() {
@@ -54,6 +53,23 @@ function writeConfig(config) {
 const clipPath = (scene) => GLib.build_filenamev([CLIPS, `${scene}.webm`]);
 const hasClip = (scene) => GLib.file_test(clipPath(scene), GLib.FileTest.EXISTS);
 
+// The clone must not contribute its cropped bounds to its parent's preferred size.
+// Allocate it directly rather than requesting another layout during allocation.
+const Wallpaper = GObject.registerClass(class Wallpaper extends Clutter.Actor {
+    vfunc_get_preferred_width() { return [0, 0]; }
+    vfunc_get_preferred_height() { return [0, 0]; }
+    vfunc_allocate(box) {
+        this.set_allocation(box);
+        const clone = this.get_first_child();
+        if (!clone) return;
+        const source = clone.get_source();
+        const cover = coverGeometry(source?.width, source?.height, this.width, this.height);
+        if (!cover) return;
+        clone.allocate(new Clutter.ActorBox({x1: cover.x, y1: cover.y,
+            x2: cover.x + cover.width, y2: cover.y + cover.height}));
+    }
+});
+
 export default class DeskworldsExtension extends Extension {
     enable() {
         this._injections = new InjectionManager();
@@ -61,6 +77,8 @@ export default class DeskworldsExtension extends Extension {
         this._signals = [];
         this._rendererActor = null;
         this._sent = {};
+        this._policyAt = 0;
+        this._rates = [];
         this._config = {scene: 'riverscape', mode: 'live', paused: false, ...readConfig()};
         if (!this._config.root) {
             // Installed as a symlink into the repository: <root>/gnome/<uuid>.
@@ -84,9 +102,9 @@ export default class DeskworldsExtension extends Extension {
         for (const [object, id] of this._signals)
             object.disconnect(id);
         this._signals = [];
-        for (const id of [this._pollId, this._restartId])
+        for (const id of [this._pollId, this._restartId, this._fadeId])
             if (id) GLib.source_remove(id);
-        this._pollId = this._restartId = 0;
+        this._pollId = this._restartId = this._fadeId = 0;
         this._monitor?.cancel();
         this._monitor = null;
         this._upower = this._profiles = null;
@@ -121,10 +139,12 @@ export default class DeskworldsExtension extends Extension {
             if (event !== Gio.FileMonitorEvent.CHANGES_DONE_HINT && event !== Gio.FileMonitorEvent.CREATED)
                 return;
             const next = {...this._config, ...readConfig()};
-            const restart = next.scene !== this._config.scene || next.mode !== this._config.mode;
+            const restart = next.scene !== this._config.scene || next.mode !== this._config.mode ||
+                next.root !== this._config.root;
             this._config = next;
             this._updateMenu();
             if (restart) this._restartRenderer();
+            else this._poll(true);
         });
 
         const proxy = (name, path, iface) => Gio.DBusProxy.new_for_bus_sync(
@@ -135,10 +155,12 @@ export default class DeskworldsExtension extends Extension {
         } catch (e) {
             console.warn(`deskworlds: no UPower: ${e.message}`);
         }
-        try {
-            this._profiles = proxy('net.hadess.PowerProfiles', '/net/hadess/PowerProfiles',
-                'net.hadess.PowerProfiles');
-        } catch {}
+        for (const name of ['org.freedesktop.UPower.PowerProfiles', 'net.hadess.PowerProfiles']) {
+            try {
+                const candidate = proxy(name, `/${name.replaceAll('.', '/')}`, name);
+                if (candidate.get_name_owner()) { this._profiles = candidate; break; }
+            } catch {}
+        }
 
         this._launchRenderer();
         this._schedulePoll(500);
@@ -155,17 +177,22 @@ export default class DeskworldsExtension extends Extension {
             mode = 'live';
         }
         const monitor = Main.layoutManager.primaryMonitor;
+        if (!monitor) return; // No outputs while a dock is being disconnected.
+        this._mode = mode;
         const launcher = new Gio.SubprocessLauncher({
             flags: Gio.SubprocessFlags.STDIN_PIPE | Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE,
         });
+        launcher.setenv('GDK_BACKEND', 'wayland', true);
         launcher.set_cwd(root);
         const argv = ['gjs', '-m', GLib.build_filenamev([this.path, 'renderer.js']),
-            root, scene, mode, String(monitor.width), String(monitor.height)];
+            root, scene, mode, String(monitor.width), String(monitor.height),
+            `--monitor=${monitor.x},${monitor.y}`];
         this._client = Meta.WaylandClient.new_subprocess(global.context, launcher, argv);
         const process = this._process = this._client.get_subprocess();
         launcher.close?.();
         this._stdin = process.get_stdin_pipe();
         this._sent = {};
+        this._policyAt = 0;
         this._ready = false;
 
         const output = new Gio.DataInputStream({base_stream: process.get_stdout_pipe()});
@@ -174,9 +201,9 @@ export default class DeskworldsExtension extends Extension {
             try {
                 [line] = stream.read_line_finish_utf8(result);
             } catch {}
-            if (line === null) return;
+            if (line === null) { stream.close(null); return; }
             console.log(`deskworlds: ${line}`);
-            if (line.includes('ready')) {
+            if (process === this._process && (line.endsWith('scene ready') || line.endsWith('video ready'))) {
                 this._backoff = 0;
                 this._fadeIn();
             }
@@ -184,9 +211,10 @@ export default class DeskworldsExtension extends Extension {
         });
         read();
 
-        process.wait_async(null, () => {
+        process.wait_async(null, (p, result) => {
+            try { p.wait_finish(result); } catch {}
             if (process !== this._process) return;
-            this._process = this._client = this._stdin = null;
+            this._stopRenderer(false);
             if (this._stopped) return;
             // Back off while it keeps failing; a renderer that got to "ready" resets this.
             this._backoff = Math.min(60000, (this._backoff || 1000) * 2);
@@ -199,13 +227,15 @@ export default class DeskworldsExtension extends Extension {
         });
     }
 
-    _stopRenderer() {
+    _stopRenderer(terminate = true) {
+        if (this._fadeId) GLib.source_remove(this._fadeId);
+        this._fadeId = 0;
         const process = this._process;
         this._process = this._client = this._stdin = null;
         this._rendererActor = null;
         this._ready = false;
         for (const wallpaper of this._wallpapers) wallpaper.setSource(null);
-        process?.force_exit();
+        if (terminate) process?.force_exit();
     }
 
     _restartRenderer() {
@@ -220,9 +250,10 @@ export default class DeskworldsExtension extends Extension {
 
     // Commands are dropped rather than ever blocking the shell on a stuck renderer.
     _send(line) {
+        if (!this._stdin) return false;
         try {
-            this._stdin?.write_nonblocking(new TextEncoder().encode(`${line}\n`), null);
-            return true;
+            const bytes = new TextEncoder().encode(`${line}\n`);
+            return this._stdin.write_nonblocking(bytes, null) === bytes.length;
         } catch {
             return false;
         }
@@ -242,13 +273,15 @@ export default class DeskworldsExtension extends Extension {
         });
         for (const wallpaper of this._wallpapers) wallpaper.setSource(actor);
         this._sent = {};
-        this._poll();
+        this._poll(true);
     }
 
     _fadeIn() {
         // The scene still compiles its shaders after it says it is ready.
         const process = this._process;
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1200, () => {
+        if (this._fadeId) GLib.source_remove(this._fadeId);
+        this._fadeId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1200, () => {
+            this._fadeId = 0;
             if (process !== this._process) return GLib.SOURCE_REMOVE;
             this._ready = true;
             for (const wallpaper of this._wallpapers) wallpaper.fadeIn();
@@ -264,22 +297,32 @@ export default class DeskworldsExtension extends Extension {
             original => function (...args) {
                 const backgroundActor = original.apply(this, args);
                 const lockScreen = this._container?.style_class?.includes?.('screen-shield-background');
-                if (!lockScreen) self._addWallpaper(backgroundActor);
+                if (!lockScreen) self._addWallpaper(backgroundActor, this._monitorIndex);
                 return backgroundActor;
             });
     }
 
-    _addWallpaper(backgroundActor) {
-        const holder = new St.Widget({
-            layout_manager: new Clutter.BinLayout(), x_expand: true, y_expand: true, opacity: 0,
+    _addWallpaper(backgroundActor, monitorIndex) {
+        const holder = new Wallpaper({
+            clip_to_allocation: true,
+            x_expand: true, y_expand: true, opacity: 0,
         });
-        let clone = null;
-        holder.setSource = (source) => {
+        holder.monitorIndex = monitorIndex;
+        let clone = null, source = null, sourceSignal = 0;
+        const disconnectSource = () => {
+            if (sourceSignal) source.disconnect(sourceSignal);
+            source = null;
+            sourceSignal = 0;
+        };
+        holder.setSource = (nextSource) => {
+            disconnectSource();
             clone?.destroy();
             clone = null;
             holder.opacity = 0;
+            source = nextSource;
             if (!source) return;
-            clone = new Clutter.Clone({source, x_expand: true, y_expand: true});
+            sourceSignal = source.connect('notify::allocation', () => holder.queue_relayout());
+            clone = new Clutter.Clone({source});
             holder.add_child(clone);
             // Re-attaching to a renderer that is already drawing.
             if (this._ready) holder.fadeIn();
@@ -290,7 +333,10 @@ export default class DeskworldsExtension extends Extension {
         backgroundActor.layout_manager = new Clutter.BinLayout();
         backgroundActor.add_child(holder);
         this._wallpapers.add(holder);
-        holder.connect('destroy', () => this._wallpapers.delete(holder));
+        holder.connect('destroy', () => {
+            disconnectSource();
+            this._wallpapers.delete(holder);
+        });
         if (this._rendererActor) holder.setSource(this._rendererActor);
     }
 
@@ -341,7 +387,7 @@ export default class DeskworldsExtension extends Extension {
         });
     }
 
-    // Windows on the active workspace that can hide the primary monitor's desktop.
+    // Windows on the active workspace that can hide any monitor's desktop.
     _desktopWindows() {
         const workspace = global.workspace_manager.get_active_workspace();
         return global.get_window_actors()
@@ -350,7 +396,7 @@ export default class DeskworldsExtension extends Extension {
                 window.window_type !== Meta.WindowType.DESKTOP && window.located_on_workspace(workspace));
     }
 
-    _poll() {
+    _poll(force = false) {
         if (!this._stdin) return;
         // A window minimized while its map animation runs can stay mapped on top of the
         // desktop; minimizing it again hides it for good.
@@ -359,39 +405,47 @@ export default class DeskworldsExtension extends Extension {
             renderer.meta_window.unminimize();
             renderer.meta_window.minimize();
         }
-        const monitor = Main.layoutManager.primaryMonitor;
-        const windows = this._desktopWindows();
-        // The largest share of the monitor any one window hides.
-        let covered = 0;
-        for (const window of windows) {
-            const r = window.get_frame_rect();
-            const w = Math.min(r.x + r.width, monitor.x + monitor.width) - Math.max(r.x, monitor.x);
-            const h = Math.min(r.y + r.height, monitor.y + monitor.height) - Math.max(r.y, monitor.y);
-            if (w > 0 && h > 0) covered = Math.max(covered, (w * h) / (monitor.width * monitor.height));
+        const monitors = Main.layoutManager.monitors;
+        const now = GLib.get_monotonic_time();
+        // Window enumeration and coverage run at 2 Hz, independently of pointer sampling.
+        if (force || !this._policyAt || now - this._policyAt >= 500000) {
+            this._policyAt = now;
+            const rectangles = this._desktopWindows().map(window => window.get_frame_rect());
+            const battery = Boolean(this._upower?.get_cached_property('OnBattery')?.unpack());
+            const saver = this._profiles?.get_cached_property('ActiveProfile')?.unpack() === 'power-saver';
+            this._rates = desktopRates(monitors, rectangles, {
+                battery, saver, paused: this._config.paused, locked: Main.sessionMode.isLocked,
+                overview: Main.overview.visible,
+            });
+            this._sendIfChanged('power', battery ? 1 : 0);
         }
-        const battery = Boolean(this._upower?.get_cached_property('OnBattery')?.unpack());
-        const saver = this._profiles?.get_cached_property('ActiveProfile')?.unpack() === 'power-saver';
-        const still = this._config.paused || saver || Main.sessionMode.isLocked;
-        const showing = Main.overview.visible ? 0 : covered;
-        const rate = still || showing > 0.85 ? 0 : showing > 0.6 ? RATE_PARTLY_COVERED : battery ? RATE_BATTERY : RATE_AC;
-
-        this._sendIfChanged('power', battery ? 1 : 0);
+        // A visible secondary screen keeps the shared world moving even if the primary
+        // is covered. Rendering and video decoding still happen just once.
+        const rate = Math.max(0, ...this._rates);
         this._sendIfChanged('rate', rate);
 
         // The pointer reaches the scene only where the desktop itself is under it: not
         // over a window, the top bar, the dock or a popup.
         let pointer = 'out';
-        if (rate > 0 && !Main.overview.visible) {
+        if (rate > 0 && this._mode === 'live' && !Main.overview.visible) {
             const [x, y] = global.get_pointer();
-            const inside = x >= monitor.x && y >= monitor.y && x < monitor.x + monitor.width && y < monitor.y + monitor.height;
-            const top = global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, x, y);
-            if (inside && Main.layoutManager._backgroundGroup.contains(top))
-                pointer = `pointer ${x - monitor.x} ${y - monitor.y}`;
+            const point = desktopPointer(monitors, this._rates, x, y, renderer?.width, renderer?.height);
+            // Actor picking is relatively expensive; only repeat it when the pointer
+            // moves or the window/coverage sample changes.
+            if (point) {
+                const sample = `${x},${y},${this._policyAt}`;
+                if (sample !== this._pointerSample) {
+                    this._pointerSample = sample;
+                    const top = global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, x, y);
+                    this._pointerOnDesktop = Boolean(top && Main.layoutManager._backgroundGroup.contains(top));
+                }
+                if (this._pointerOnDesktop) pointer = `pointer ${point[0].toFixed(6)} ${point[1].toFixed(6)}`;
+            }
         }
         if (pointer !== this._sent.pointer && this._send(pointer)) this._sent.pointer = pointer;
 
         // Pointer sampling need not outrun the animation, nor wake a stopped wallpaper.
-        this._schedulePoll(rate > 0 ? 33 : 500);
+        this._schedulePoll(pollInterval(rate, this._mode === 'live'));
     }
 
     _sendIfChanged(name, value) {
@@ -446,7 +500,7 @@ export default class DeskworldsExtension extends Extension {
         if (change.paused !== undefined) {
             this._config = next;
             this._updateMenu();
-            this._poll();
+            this._poll(true);
         }
     }
 }

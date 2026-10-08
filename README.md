@@ -4,6 +4,9 @@
 
 Deskworlds puts a small living 3D world on your Mac desktop. The creatures in each world react to your cursor, and you can feed them from the menu bar. Everything runs locally with Three.js and WebGL2, with no account, analytics or internet connection.
 
+This fork also supports **Fedora 44 / GNOME 50 on Wayland**, including multiple monitors.
+See [the Fedora guide](docs/fedora.md) for installation, controls and performance details.
+
 ## Worlds
 
 | | |

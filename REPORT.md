@@ -1,5 +1,33 @@
 # Deskworlds — local install & experiments
 
+## Update: personal fork and monitor support
+
+The Fedora additions are now committed on `codex/fedora-desktop` in
+https://github.com/AlbertoLupatin/deskworlds. The original repository is the
+`upstream` remote; `origin` points to the personal fork.
+
+The extension now shares one renderer across monitors with aspect-preserving
+center crops and normalized cursor mapping. Rate policy evaluates every monitor
+and counts the union of covering windows, including tiled layouts. Window scans
+run at 2 Hz, video skips pointer sampling, and live WebKit commands have at most
+one evaluation in flight. Rendering budgets and scene shaders are unchanged.
+See [docs/fedora.md](docs/fedora.md) for current installation and behavior.
+
+Validation of the update: `npm run check` and the full `npm test` suite pass.
+`python3 gnome/tests/integration.py` passes on three virtual displays (1920x1080,
+1536x960 and portrait 1080x1920), including cursor routing, exact crop allocation,
+primary/all-display coverage, settings changes, crash recovery and clean disable.
+The updated host made 12 window scans in six seconds, compared with 180 in the
+original single-display sample. This is about 93% fewer scans, not a measurement
+of overall CPU, GPU or power savings. No reliable FPS uplift has been established;
+the host retains the existing 30 fps ceiling and rendering budgets. The live
+session still needs its first logout/login to discover the extension.
+
+The following is the original installation/experiment record; its performance
+measurements describe that earlier version, not a new FPS comparison.
+
+## Original installation record
+
 Work done 2026-10-08 on this machine: Fedora 44, GNOME Shell 50.5 (Wayland), Intel Core
 Ultra 5 225H with Arc 130T iGPU, display 1920x1200 at 125%. Upstream is
 https://github.com/chaseleantj/deskworlds (MIT, built for macOS). No upstream file is
@@ -158,8 +186,8 @@ uses the isolated directory too.
 
 ## Known limits / next steps
 
-- A second monitor shows the primary monitor's world scaled to fit; it is not rendered
-  separately.
+- Updated: secondary monitors now show the shared world with a centered crop that
+  preserves proportions, plus cursor and visibility policy on every monitor.
 - Video mode doesn't react to the cursor or to feeding.
 - When the session locks, the extension is disabled and the renderer stopped. After
   unlocking, the world fades back in after a few seconds.

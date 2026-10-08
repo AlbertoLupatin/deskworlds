@@ -5,7 +5,7 @@
 // command per line:
 //   rate <fps>        0 stops drawing (and pauses a clip)
 //   power <0|1>       on battery
-//   pointer <x> <y>   cursor position in window coordinates
+//   pointer <x> <y>   cursor position normalized to the rendered world (0..1)
 //   out               cursor left the desktop
 //   feed              drop food
 //
@@ -20,6 +20,7 @@ import Gdk from 'gi://Gdk?version=4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import WebKit from 'gi://WebKit?version=6.0';
 import {exit, programArgs} from 'system';
+import {createCommandQueue} from './command-queue.js';
 
 const [root, scene, mode, width, height, ...flags] = programArgs;
 const windowed = flags.includes('--windowed');
@@ -50,8 +51,13 @@ function liveView() {
         }
         addEventListener('error', (event) => report(event.message + ' at ' + event.filename + ':' + event.lineno));
         addEventListener('unhandledrejection', (event) => report(event.reason));
-        window.scenePointer = (x, y) => document.querySelector('#scene')?.dispatchEvent(
-          new PointerEvent('pointermove', { clientX: x, clientY: y, bubbles: true }));
+        window.scenePointer = (x, y) => {
+          const canvas = document.querySelector('#scene');
+          if (!canvas) return;
+          const bounds = canvas.getBoundingClientRect();
+          canvas.dispatchEvent(new PointerEvent('pointermove', {
+            clientX: bounds.left + x * bounds.width, clientY: bounds.top + y * bounds.height, bubbles: true }));
+        };
         window.scenePointerOut = () => document.querySelector('#scene')?.dispatchEvent(new PointerEvent('pointerleave'));`,
     WebKit.UserContentInjectedFrames.TOP_FRAME, WebKit.UserScriptInjectionTime.START, null, null));
     content.register_script_message_handler('report', null);
@@ -60,10 +66,15 @@ function liveView() {
 
     const view = new WebKit.WebView({settings, user_content_manager: content});
     view.set_background_color(new Gdk.RGBA({red: 0, green: 0, blue: 0, alpha: 1}));
-    const run = (js) => view.evaluate_javascript(js, -1, null, null, null, null);
+    const queue = createCommandQueue(
+        callback => GLib.idle_add(GLib.PRIORITY_DEFAULT, () => { callback(); return GLib.SOURCE_REMOVE; }),
+        (js, done) => view.evaluate_javascript(js, -1, null, null, null, (v, result) => {
+            try { v.evaluate_javascript_finish(result); } catch (e) { log(`command: ${e.message}`); }
+            done();
+        }));
     let ready = false;
     apply = () => {
-        if (ready) run(`scenePower(${battery}); sceneRate(${rate});`);
+        if (ready) queue.send('state', `scenePower(${battery}); sceneRate(${rate})`);
     };
     // start.js posts "ready" once the scene's sceneRate/scenePower hooks exist.
     content.connect('script-message-received::ready', () => {
@@ -95,9 +106,10 @@ function liveView() {
         widget: view,
         command(name, args) {
             if (!ready) return;
-            if (name === 'pointer') run(`scenePointer(${+args[0]},${+args[1]})`);
-            else if (name === 'out') run('scenePointerOut()');
-            else if (name === 'feed') run("typeof sceneFeed === 'function' && sceneFeed()");
+            if (name === 'pointer' && args.length === 2 && args.every(v => Number.isFinite(+v)))
+                queue.send('pointer', `scenePointer(${+args[0]},${+args[1]})`);
+            else if (name === 'out') queue.send('pointer', 'scenePointerOut()');
+            else if (name === 'feed') queue.send('feed', "typeof sceneFeed === 'function' && sceneFeed()");
         },
     };
 }
@@ -130,7 +142,17 @@ app.connect('activate', () => {
     });
     // Fullscreen is the only way to get exactly the monitor's size, top bar included; the
     // shell never shows this window (it is minimized), only clones of it.
-    if (!windowed) window.fullscreen();
+    if (!windowed) {
+        const position = flags.find(flag => flag.startsWith('--monitor='))?.slice(10).split(',').map(Number);
+        const monitors = Gdk.Display.get_default().get_monitors();
+        let target = null;
+        for (let i = 0; position?.length === 2 && i < monitors.get_n_items(); i++) {
+            const monitor = monitors.get_item(i), geometry = monitor.get_geometry();
+            if (geometry.x === position[0] && geometry.y === position[1]) { target = monitor; break; }
+        }
+        if (target) window.fullscreen_on_monitor(target);
+        else window.fullscreen();
+    }
     window.present();
     if (windowed) {
         rate = 60;
