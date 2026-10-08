@@ -21,7 +21,26 @@ The updated host made 12 window scans in six seconds, compared with 180 in the
 original single-display sample. This is about 93% fewer scans, not a measurement
 of overall CPU, GPU or power savings. No reliable FPS uplift has been established;
 the host retains the existing 30 fps ceiling and rendering budgets. The live
-session still needs its first logout/login to discover the extension.
+session has since loaded the extension.
+
+### Live performance follow-up, 2026-10-08
+
+After the three-display extension loaded in the real session, Riverbed caused
+noticeable desktop lag. The wallpaper was switched to Plasma globe. Short
+five-second process samples in this session showed the external DisplayLink
+manager using roughly 80% of one CPU core with Deskworlds disabled, about
+90–125% while Plasma globe was live, and 143% for its 1920x1200/30 fps VP9
+clip. GNOME Shell and several unrelated desktop apps were also active, so
+these samples are diagnostic observations rather than controlled benchmarks.
+Video did not improve responsiveness on this DisplayLink setup.
+
+The live extension now supports `maxFps` in the config and
+`./wallpaper.sh fps 10..30` / `./wallpaper.sh fps auto`. The local configuration
+uses 20 fps for Plasma globe, preserving its existing Balanced render quality.
+An isolated GNOME integration test confirms the rate request changes from
+30 to 20 and back without restarting the renderer. A direct feel/FPS check in
+the real session remains pending because GNOME locked the screen during the
+test; all user extensions are inactive until unlock.
 
 The following is the original installation/experiment record; its performance
 measurements describe that earlier version, not a new FPS comparison.
@@ -58,7 +77,7 @@ journalctl --user -b --since "10 min ago" | grep -i deskworlds | tail -20
 
 ## Using it
 
-- Top-bar icon: pick the world, Feed, Paused, Video (no cursor, lowest power).
+- Top-bar icon: pick the world, Feed, Paused, Video (no cursor).
 - Terminal: `./wallpaper.sh` (show settings and clips), `./wallpaper.sh <scene> [live|video]`,
   `./wallpaper.sh live|video`, `./wallpaper.sh pause|play`.
   Scenes: riverscape, reefscape, bettascape, plasmascape, koiscape.

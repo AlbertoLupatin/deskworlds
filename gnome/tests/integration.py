@@ -110,6 +110,14 @@ try:
     assert 8 <= state['scans'] <= 14
     print(f"PASS: {state['scans']} window scans in six seconds ({state['polls']} pointer polls)", flush=True)
 
+    settings(maxFps=20)
+    time.sleep(1)
+    assert stats()['sent']['rate'] == 20
+    settings()
+    time.sleep(1)
+    assert stats()['sent']['rate'] == 30
+    print('PASS: live frame cap updates without restarting the renderer', flush=True)
+
     # Synthetic cursor samples exercise real Shell actor picking on each monitor.
     # Avoid headless virtual-input-device mapping, which can clamp to a monitor edge.
     extension('globalThis.__dwGetPointer=global.get_pointer.bind(global);return 1;')

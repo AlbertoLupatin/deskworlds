@@ -52,3 +52,10 @@ export function desktopRates(monitors, rectangles, {paused = false, saver = fals
 export function pollInterval(rate, live = true) {
     return live && rate > 0 ? Math.ceil(1000 / rate) : 500;
 }
+
+export function cappedRate(rate, limit) {
+    // A missing/invalid setting preserves the host's normal policy. A real limit
+    // only reduces active animation; it cannot wake a covered or paused desktop.
+    return Number.isInteger(limit) && limit >= 10 && limit <= 30
+        ? Math.min(rate, limit) : rate;
+}

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {coverGeometry, desktopPointer, coveredFraction, desktopRates, pollInterval}
+import {coverGeometry, desktopPointer, coveredFraction, desktopRates, pollInterval, cappedRate}
     from '../deskworlds@deskworlds.local/desktop-policy.js';
 import {createCommandQueue} from '../deskworlds@deskworlds.local/command-queue.js';
 
@@ -42,6 +42,11 @@ assert.equal(pollInterval(20), 50);
 assert.equal(pollInterval(15), 67);
 assert.equal(pollInterval(0), 500);
 assert.equal(pollInterval(30, false), 500);
+assert.equal(cappedRate(30, 20), 20);
+assert.equal(cappedRate(15, 20), 15);
+assert.equal(cappedRate(0, 20), 0);
+assert.equal(cappedRate(30, 0), 30);
+assert.equal(cappedRate(30, 60), 30);
 
 // Check the rectangle union against exact integer pixel coverage for many layouts.
 let seed = 42;

@@ -26,6 +26,8 @@ video. Terminal controls:
 ./wallpaper.sh pause
 ./wallpaper.sh play
 ./wallpaper.sh koiscape video
+./wallpaper.sh fps 20                 # reduce live updates on a busy desktop
+./wallpaper.sh fps auto               # restore the normal frame-rate policy
 ```
 
 Settings live at `~/.config/deskworlds/wallpaper.json`. The extension watches this
@@ -62,6 +64,14 @@ battery, 15 fps when every visible desktop is mostly covered, and stops when all
 desktops are covered, paused, locked, or the power profile is power-saver. Actual
 presentation speed depends on the GPU and compositor; these are ceilings.
 
+If an external display adapter or compositor is busy, `./wallpaper.sh fps 20`
+reduces live rendering and cursor sampling to 20 Hz. The scene's pixel budget
+and effects stay the same. This setting does not change a pre-rendered clip's
+playback rate. The original policy is restored with `./wallpaper.sh fps auto`.
+For a temporary FPS log, set `"diagnostics": true` in the settings JSON and
+reload the extension; this writes the scene's FPS every two seconds to the GNOME
+Shell journal. Remove the setting and reload when done.
+
 Window scans run twice per second instead of at cursor frequency. Cursor sampling
 follows the requested animation rate, stationary cursors avoid repeated actor
 picks, and video mode uses a 500 ms policy poll without cursor sampling. Coverage
@@ -70,7 +80,7 @@ at most one evaluation in flight, so a busy renderer retains the latest cursor
 state rather than queuing obsolete events. No higher pixel or frame-rate budget
 is enabled by default.
 
-For the lowest ongoing resource use, render clips once and use video mode:
+To try pre-rendered playback, render clips once and switch to video mode:
 
 ```sh
 ./start.sh
@@ -81,6 +91,9 @@ tools/record-all.sh 30 1920 1200 native 30
 Recording also requires Chromium (`chromium-browser`) and FFmpeg with VP9 encoding.
 It renders offline with a fixed timestep; export speed does not limit playback
 fps. Video has no cursor or feeding interaction.
+Measure it on your displays before leaving it on: on this three-screen
+DisplayLink setup, the 30 fps clip increased DisplayLink CPU use compared with
+live Plasma globe.
 
 ## Verification and troubleshooting
 

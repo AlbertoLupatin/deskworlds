@@ -88,7 +88,7 @@ function liveView() {
     });
     const page = GLib.build_filenamev([root, 'scenes', scene, 'wallpaper.html']);
     view.load_uri(`${GLib.filename_to_uri(page, null)}?quality=${GLib.getenv('DESKWORLDS_QUALITY') || 'balanced'}`);
-    if (GLib.getenv('DESKWORLDS_DEBUG')) {
+    if (GLib.getenv('DESKWORLDS_DEBUG') || flags.includes('--debug')) {
         // Frames actually drawn per second, from the scene's own counter.
         let last = 0;
         GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {

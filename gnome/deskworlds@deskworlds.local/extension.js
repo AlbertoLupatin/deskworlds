@@ -22,7 +22,7 @@ import * as WorkspaceThumbnail from 'resource:///org/gnome/shell/ui/workspaceThu
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension, InjectionManager} from 'resource:///org/gnome/shell/extensions/extension.js';
-import {coverGeometry, desktopPointer, desktopRates, pollInterval} from './desktop-policy.js';
+import {coverGeometry, desktopPointer, desktopRates, pollInterval, cappedRate} from './desktop-policy.js';
 
 const TITLE = '@deskworlds-renderer!';
 const SCENES = [
@@ -138,7 +138,8 @@ export default class DeskworldsExtension extends Extension {
         this._monitor.connect('changed', (_m, _f, _o, event) => {
             if (event !== Gio.FileMonitorEvent.CHANGES_DONE_HINT && event !== Gio.FileMonitorEvent.CREATED)
                 return;
-            const next = {...this._config, ...readConfig()};
+            const next = {scene: 'riverscape', mode: 'live', paused: false, ...readConfig()};
+            if (!next.root) next.root = this._config.root;
             const restart = next.scene !== this._config.scene || next.mode !== this._config.mode ||
                 next.root !== this._config.root;
             this._config = next;
@@ -187,6 +188,7 @@ export default class DeskworldsExtension extends Extension {
         const argv = ['gjs', '-m', GLib.build_filenamev([this.path, 'renderer.js']),
             root, scene, mode, String(monitor.width), String(monitor.height),
             `--monitor=${monitor.x},${monitor.y}`];
+        if (this._config.diagnostics) argv.push('--debug');
         this._client = Meta.WaylandClient.new_subprocess(global.context, launcher, argv);
         const process = this._process = this._client.get_subprocess();
         launcher.close?.();
@@ -421,7 +423,7 @@ export default class DeskworldsExtension extends Extension {
         }
         // A visible secondary screen keeps the shared world moving even if the primary
         // is covered. Rendering and video decoding still happen just once.
-        const rate = Math.max(0, ...this._rates);
+        const rate = cappedRate(Math.max(0, ...this._rates), this._config.maxFps);
         this._sendIfChanged('rate', rate);
 
         // The pointer reaches the scene only where the desktop itself is under it: not
@@ -474,7 +476,7 @@ export default class DeskworldsExtension extends Extension {
         this._pauseItem = new PopupMenu.PopupSwitchMenuItem('Paused', false);
         this._pauseItem.connect('toggled', (_i, state) => this._setConfig({paused: state}));
         menu.addMenuItem(this._pauseItem);
-        this._videoItem = new PopupMenu.PopupSwitchMenuItem('Video (no cursor, lowest power)', false);
+        this._videoItem = new PopupMenu.PopupSwitchMenuItem('Video (no cursor)', false);
         this._videoItem.connect('toggled', (_i, state) => this._setConfig({mode: state ? 'video' : 'live'}));
         menu.addMenuItem(this._videoItem);
         menu.connect('open-state-changed', (_m, open) => open && this._updateMenu());
