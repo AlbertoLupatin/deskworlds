@@ -14,8 +14,10 @@ sh gnome/install.sh
 
 Log out and back in once after the first installation; GNOME on Wayland discovers
 new extensions at login. The extension is linked to the checkout, so keep the
-repository in place. After updating, disable and enable Deskworlds from the
-Extensions app, or log out and back in. No local web server is needed for wallpaper.
+repository in place. After updating its JavaScript, log out and back in to load
+the new code. Toggling the extension reuses GNOME's cached module. Settings such
+as world, mode, pause and frame cap then apply without another logout. No local
+web server is needed for wallpaper.
 
 Use the top-bar icon to choose a world, feed its inhabitants, pause, or switch to
 video. Terminal controls:
@@ -69,8 +71,8 @@ reduces live rendering and cursor sampling to 20 Hz. The scene's pixel budget
 and effects stay the same. This setting does not change a pre-rendered clip's
 playback rate. The original policy is restored with `./wallpaper.sh fps auto`.
 For a temporary FPS log, set `"diagnostics": true` in the settings JSON and
-reload the extension; this writes the scene's FPS every two seconds to the GNOME
-Shell journal. Remove the setting and reload when done.
+log out and back in; this writes the scene's FPS every two seconds to the GNOME
+Shell journal. Remove the setting and log out and back in when done.
 
 Window scans run twice per second instead of at cursor frequency. Cursor sampling
 follows the requested animation rate, stationary cursors avoid repeated actor

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Install the Deskworlds GNOME Shell extension for this user (symlinked, so pulling the
-# repository updates it). GNOME on Wayland only loads a new extension at login.
+# repository updates it). GNOME caches extension modules until the next login.
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 root=$(dirname "$here")
@@ -27,7 +27,7 @@ esac
 
 if gnome-extensions info "$uuid" >/dev/null 2>&1; then
   gnome-extensions enable "$uuid"
-  echo "Deskworlds enabled. Switch worlds from its icon in the top bar or with ./wallpaper.sh."
+  echo "Deskworlds enabled. Log out and back in after source updates so GNOME loads the new code."
 else
   echo "Installed. Log out and back in once to start it (GNOME on Wayland loads new extensions at login)."
 fi

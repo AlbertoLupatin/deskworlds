@@ -34,13 +34,15 @@ clip. GNOME Shell and several unrelated desktop apps were also active, so
 these samples are diagnostic observations rather than controlled benchmarks.
 Video did not improve responsiveness on this DisplayLink setup.
 
-The live extension now supports `maxFps` in the config and
+The source now supports `maxFps` in the config and
 `./wallpaper.sh fps 10..30` / `./wallpaper.sh fps auto`. The local configuration
-uses 20 fps for Plasma globe, preserving its existing Balanced render quality.
+requests 20 fps for Plasma globe, preserving its existing Balanced render quality.
 An isolated GNOME integration test confirms the rate request changes from
-30 to 20 and back without restarting the renderer. A direct feel/FPS check in
-the real session remains pending because GNOME locked the screen during the
-test; all user extensions are inactive until unlock.
+30 to 20 and back without restarting the renderer. The real session still runs
+the module imported before this change: disabling and enabling the extension
+reuses GNOME's cached JavaScript. It therefore continued requesting 30 fps
+despite `maxFps` changes. A logout/login is needed to load the current code.
+Live measurements after that are still pending.
 
 The following is the original installation/experiment record; its performance
 measurements describe that earlier version, not a new FPS comparison.
